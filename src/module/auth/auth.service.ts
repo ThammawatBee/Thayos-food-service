@@ -31,17 +31,17 @@ export class AuthService {
     };
   }
 
-  async extendToken(payload: { sub: string; username: string }) {
-    const expiresInSeconds = 2 * 60 * 60; // 2 hours
-    const token = jwt.sign(payload, JWT_SECRET, {
-      expiresIn: expiresInSeconds,
-    });
-    const expiresAt = DateTime.now().plus({ seconds: expiresInSeconds });
-    return {
-      access_token: token,
-      expiresAt: Math.floor(expiresAt.toSeconds()),
-    };
-  }
+  // async extendToken(payload: { sub: string; username: string }) {
+  //   const expiresInSeconds = 2 * 60 * 60; // 2 hours
+  //   const token = jwt.sign(payload, JWT_SECRET, {
+  //     expiresIn: expiresInSeconds,
+  //   });
+  //   const expiresAt = DateTime.now().plus({ seconds: expiresInSeconds });
+  //   return {
+  //     access_token: token,
+  //     expiresAt: Math.floor(expiresAt.toSeconds()),
+  //   };
+  // }
 
   async verifyToken(token: string) {
     try {

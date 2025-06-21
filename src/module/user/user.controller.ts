@@ -7,9 +7,10 @@ import {
   Query,
   UseGuards,
   Patch,
+  Param,
 } from '@nestjs/common';
 import { UserService } from './user.service';
-import { CreateUser, ListUsers } from 'src/schema/zod';
+import { CreateUser, EditUser, ListUsers } from 'src/schema/zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { UserPayload } from 'src/types/user-payload.interface';
 import { User } from 'src/decorator/user.decorator';
@@ -17,7 +18,7 @@ import { User } from 'src/decorator/user.decorator';
 // @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
   @Post('register')
   async register(@Body() dto: any) {
@@ -33,6 +34,12 @@ export class UserController {
   async listUsers(@Query() query: ListUsers) {
     const result = await this.userService.listUsers(query);
     return { users: result.users, count: result.count };
+  }
+
+  @Patch('/:id')
+  async editEquipment(@Param('id') id: string, @Body() body: EditUser) {
+    const user = await this.userService.editUser(id, body);
+    return { user };
   }
 
   // @Patch('/reset-password')

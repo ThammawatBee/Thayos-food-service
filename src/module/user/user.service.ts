@@ -6,18 +6,56 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Brackets, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { RoleType, User } from '../../entities/user.entity';
-import { CreateUser, ListUsers } from 'src/schema/zod';
+import { CreateUser, EditUser, ListUsers } from 'src/schema/zod';
 
-const JWT_INIT_PASSWORD = process.env.JWT_INIT_PASSWORD || 'P@ssw0rd';
+const INIT_PASSWORD = process.env.INIT_PASSWORD || 'P@ssw0rd';
 
 @Injectable()
 export class UserService {
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
   ) {}
+
+  async editUser(id: string, payload: EditUser) {
+    const user = await this.userRepo.findOne({
+      where: { id },
+    });
+    if (!user) {
+      throw new HttpException(
+        {
+          status: HttpStatus.NOT_FOUND,
+          errorKey: 'NOT_FOUND_USER_TO_UPDATE',
+        },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    try {
+      const hashedPassword = await bcrypt.hash(payload.password, 10);
+      const updatedUser = await this.userRepo.save({
+        id,
+        name: payload.name,
+        password: hashedPassword,
+        role: payload.role as RoleType,
+      });
+      return {
+        name: updatedUser.name,
+        role: updatedUser.role,
+        id: updatedUser.id,
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          errorKey: 'EDIT_USER_ERROR',
+          error,
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
 
   async createUser(payload: CreateUser) {
     const existing = await this.userRepo.findOne({
@@ -27,7 +65,7 @@ export class UserService {
       throw new HttpException(
         {
           status: HttpStatus.BAD_REQUEST,
-          errorKey: 'CODE_IS_ALREADY_EXIST',
+          errorKey: 'USERCODE_IS_ALREADY_EXIST',
         },
         HttpStatus.BAD_REQUEST,
       );
@@ -70,13 +108,16 @@ export class UserService {
   }
 
   async listUsers(options: ListUsers) {
-    const { userCode, name, offset, limit } = options;
+    const { userCode, offset, limit } = options;
     const query = this.userRepo.createQueryBuilder('user');
     if (userCode) {
-      query.andWhere(`user.userCode ilike '%${userCode}%'`);
-    }
-    if (name) {
-      query.andWhere(`user.name ilike '%${name}%'`);
+      query.andWhere(
+        new Brackets((qb) => {
+          qb.where('user.userCode ILIKE :input', {
+            input: `%${userCode}%`,
+          }).orWhere('user.name ILIKE :input', { input: `%${userCode}%` });
+        }),
+      );
     }
     const count = await query.getCount();
     query.orderBy('user.createdAt', 'DESC');
