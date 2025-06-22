@@ -8,6 +8,7 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UserModule } from './module/user/userModule';
 import { AuthModule } from './module/auth/authModule';
+import { CustomerModule } from './module/customer/customerModule';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { AuthModule } from './module/auth/authModule';
     }),
     UserModule,
     AuthModule,
+    CustomerModule,
   ],
   controllers: [AppController],
   providers: [

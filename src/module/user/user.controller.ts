@@ -18,7 +18,7 @@ import { User } from 'src/decorator/user.decorator';
 // @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UserController {
-  constructor(private readonly userService: UserService) { }
+  constructor(private readonly userService: UserService) {}
 
   @Post('register')
   async register(@Body() dto: any) {

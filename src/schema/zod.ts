@@ -8,7 +8,7 @@ const ListUserSchema = z.object({
   name: z.string().optional(),
 });
 
-export class ListUsers extends createZodDto(ListUserSchema) { }
+export class ListUsers extends createZodDto(ListUserSchema) {}
 
 const CreateUserSchema = z.object({
   userCode: z.string(),
@@ -26,3 +26,48 @@ const EditUserSchema = z.object({
 });
 
 export class EditUser extends createZodDto(EditUserSchema) {}
+
+const ListCustomerSchema = z.object({
+  offset: z.string().optional(),
+  limit: z.string().optional(),
+  customerCode: z.string().optional(),
+});
+
+export class ListCustomers extends createZodDto(ListCustomerSchema) {}
+
+const CreateCustomerSchema = z.object({
+  customerCode: z.string(),
+  name: z.string(),
+  fullname: z.string(),
+  address: z.string(),
+  pinAddress: z.string(),
+  remark: z.string(),
+  mobileNumber: z.string(),
+  email: z.string(),
+  deliveryTime: z.string(),
+  latitude: z.number(),
+  longitude: z.number(),
+  preferBreakfast: z.boolean(),
+  preferLunch: z.boolean(),
+  preferDinner: z.boolean(),
+});
+
+export class CreateCustomer extends createZodDto(CreateCustomerSchema) {}
+
+const EditCustomerSchema = z.object({
+  name: z.string(),
+  fullname: z.string(),
+  address: z.string(),
+  pinAddress: z.string(),
+  remark: z.string(),
+  mobileNumber: z.string(),
+  email: z.string(),
+  deliveryTime: z.string(),
+  latitude: z.number(),
+  longitude: z.number(),
+  preferBreakfast: z.boolean(),
+  preferLunch: z.boolean(),
+  preferDinner: z.boolean(),
+});
+
+export class EditCustomer extends createZodDto(EditCustomerSchema) {}
