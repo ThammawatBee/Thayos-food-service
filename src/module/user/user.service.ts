@@ -107,6 +107,28 @@ export class UserService {
     return result;
   }
 
+  async deleteUser(id: string) {
+    const user = await this.userRepo.findOne({
+      where: { id },
+    });
+    if (!user) {
+      throw new HttpException(
+        {
+          status: HttpStatus.NOT_FOUND,
+          errorKey: 'NOT_FOUND_USER_TO_DELETE',
+        },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    await this.userRepo
+      .createQueryBuilder()
+      .delete()
+      .from(User)
+      .where('id = :id', { id: id })
+      .execute();
+    return;
+  }
+
   async listUsers(options: ListUsers) {
     const { userCode, offset, limit } = options;
     const query = this.userRepo.createQueryBuilder('user');

@@ -8,6 +8,7 @@ import {
   UseGuards,
   Patch,
   Param,
+  Delete,
 } from '@nestjs/common';
 import { UserService } from './user.service';
 import { CreateUser, EditUser, ListUsers } from 'src/schema/zod';
@@ -18,7 +19,7 @@ import { User } from 'src/decorator/user.decorator';
 // @UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
 
   @Post('register')
   async register(@Body() dto: any) {
@@ -37,9 +38,15 @@ export class UserController {
   }
 
   @Patch('/:id')
-  async editEquipment(@Param('id') id: string, @Body() body: EditUser) {
+  async editUser(@Param('id') id: string, @Body() body: EditUser) {
     const user = await this.userService.editUser(id, body);
     return { user };
+  }
+
+  @Delete('/:id')
+  async deleteUser(@Param('id') id: string) {
+    await this.userService.deleteUser(id);
+    return { status: 'delete user success' };
   }
 
   // @Patch('/reset-password')

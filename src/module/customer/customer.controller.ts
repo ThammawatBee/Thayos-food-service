@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -12,7 +13,7 @@ import { CustomerService } from './customer.service';
 
 @Controller('customers')
 export class CustomerController {
-  constructor(private readonly customerService: CustomerService) {}
+  constructor(private readonly customerService: CustomerService) { }
   @Get()
   async listCustomers(@Query() query: ListCustomers) {
     const result = await this.customerService.listCustomers(query);
@@ -28,5 +29,11 @@ export class CustomerController {
   async editEquipment(@Param('id') id: string, @Body() body: EditCustomer) {
     const customer = await this.customerService.editUser(id, body);
     return { customer };
+  }
+
+  @Delete('/:id')
+  async deleteCustomer(@Param('id') id: string) {
+    await this.customerService.deleteCustomer(id);
+    return { status: 'delete customer success' };
   }
 }

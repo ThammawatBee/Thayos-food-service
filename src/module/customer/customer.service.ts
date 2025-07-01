@@ -94,4 +94,26 @@ export class CustomerService {
       );
     }
   }
+
+  async deleteCustomer(id: string) {
+    const customer = await this.customerRepo.findOne({
+      where: { id },
+    });
+    if (!customer) {
+      throw new HttpException(
+        {
+          status: HttpStatus.NOT_FOUND,
+          errorKey: 'NOT_FOUND_CUSTOMER_TO_DELETE',
+        },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    await this.customerRepo
+      .createQueryBuilder()
+      .delete()
+      .from(Customer)
+      .where('id = :id', { id: id })
+      .execute();
+    return;
+  }
 }

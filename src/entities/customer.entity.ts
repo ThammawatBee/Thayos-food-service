@@ -1,4 +1,11 @@
-import { Entity, Column, CreateDateColumn, UpdateDateColumn } from 'typeorm';
+import {
+  Entity,
+  Column,
+  CreateDateColumn,
+  UpdateDateColumn,
+  OneToMany,
+} from 'typeorm';
+import { Order } from './order.entity';
 
 @Entity('customers')
 export class Customer {
@@ -46,6 +53,9 @@ export class Customer {
 
   @Column({ default: false })
   preferDinner: boolean;
+
+  @OneToMany(() => Order, (order) => order.customer)
+  orders: Order[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

@@ -71,3 +71,38 @@ const EditCustomerSchema = z.object({
 });
 
 export class EditCustomer extends createZodDto(EditCustomerSchema) {}
+
+const UpdateHolidaysSchema = z.object({
+  addHolidays: z.array(z.string()),
+  deleteHolidays: z.array(z.string()),
+});
+
+export class UpdateHolidays extends createZodDto(UpdateHolidaysSchema) {}
+
+const CreateOrderSchema = z.object({
+  type: z.string(),
+  preferBreakfast: z.boolean(),
+  preferLunch: z.boolean(),
+  preferDinner: z.boolean(),
+  breakfastCount: z.number(),
+  lunchCount: z.number(),
+  dinnerCount: z.number(),
+  deliveryTime: z.string(),
+  deliveryOn: z.object({
+    Sunday: z.boolean(),
+    Monday: z.boolean(),
+    Tuesday: z.boolean(),
+    Wednesday: z.boolean(),
+    Thursday: z.boolean(),
+    Friday: z.boolean(),
+    Saturday: z.boolean(),
+  }),
+  startDate: z.string(),
+  endDate: z.string(),
+  customerType: z.string(),
+  paymentType: z.string(),
+  total: z.number(),
+  promotion: z.string(),
+});
+
+export class CreateOrder extends createZodDto(CreateOrderSchema) {}
