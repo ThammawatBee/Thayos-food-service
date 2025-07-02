@@ -8,7 +8,7 @@ import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConne
 export const postgresDbConfig = (): PostgresConnectionOptions => ({
   type: 'postgres',
   host: 'dpg-d1i7s3qdbo4c73emcns0-a.singapore-postgres.render.com',
-  port: 54325,
+  port: 5432,
   username: 'thayos_db_user',
   password: 'WfoQ45tXx0aDb49cYHDRRt9g6JjjgJFC',
   database: 'thayos_db',
