@@ -18,7 +18,7 @@ import { CreateOrder } from 'src/schema/zod';
 
 @Controller('orders')
 export class OrderController {
-  constructor(private readonly orderService: OrderService) {}
+  constructor(private readonly orderService: OrderService) { }
 
   @Post(':id/upload-slip')
   @UseInterceptors(
@@ -40,14 +40,15 @@ export class OrderController {
     return result;
   }
 
-  @Get(':id/image')
+  @Get('/:id/image')
   async downloadSlip(@Param('id') id: string, @Res() res: Response) {
     const filename = await this.orderService.getOrderImage(id);
     return res.sendFile(join(process.cwd(), 'uploads', filename));
   }
 
-  @Post()
+  @Post('/')
   async createOrder(@Body() payload: CreateOrder) {
-    await this.orderService.createOrder(payload);
+    const order = await this.orderService.createOrder(payload);
+    return { order };
   }
 }

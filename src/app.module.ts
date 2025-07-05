@@ -10,6 +10,7 @@ import { UserModule } from './module/user/userModule';
 import { AuthModule } from './module/auth/authModule';
 import { CustomerModule } from './module/customer/customerModule';
 import { HolidayModule } from './module/holiday/holidayModule';
+import { OrderModule } from './module/order/orderModule';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { HolidayModule } from './module/holiday/holidayModule';
     AuthModule,
     CustomerModule,
     HolidayModule,
+    OrderModule,
   ],
   controllers: [AppController],
   providers: [

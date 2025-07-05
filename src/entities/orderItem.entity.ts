@@ -13,6 +13,9 @@ export class OrderItem {
   @Column({ type: 'uuid', primary: true, default: () => 'gen_random_uuid()' })
   id: string;
 
+  @Column()
+  type: string;
+
   @ManyToOne(() => Order, (order) => order.orderItems)
   @JoinColumn({ name: 'order_id' })
   order: Order;

@@ -103,6 +103,7 @@ const CreateOrderSchema = z.object({
   paymentType: z.string(),
   total: z.number(),
   promotion: z.string(),
+  customerId: z.string(),
 });
 
 export class CreateOrder extends createZodDto(CreateOrderSchema) {}
