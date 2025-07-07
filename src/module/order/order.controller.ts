@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Res,
   UploadedFile,
   UseInterceptors,
@@ -14,11 +15,11 @@ import { v4 as uuidv4 } from 'uuid';
 import { Response } from 'express';
 import { join } from 'path';
 import { diskStorage } from 'multer';
-import { CreateOrder } from 'src/schema/zod';
+import { CreateOrder, ListOderPayment } from 'src/schema/zod';
 
 @Controller('orders')
 export class OrderController {
-  constructor(private readonly orderService: OrderService) { }
+  constructor(private readonly orderService: OrderService) {}
 
   @Post(':id/upload-slip')
   @UseInterceptors(
@@ -26,7 +27,7 @@ export class OrderController {
       storage: diskStorage({
         destination: './uploads',
         filename: (req, file, cb) => {
-          const filename = `${uuidv4()}-${file.originalname}`;
+          const filename = `${file.originalname}`;
           cb(null, filename);
         },
       }),
@@ -38,6 +39,12 @@ export class OrderController {
   ) {
     const result = await this.orderService.uploadSlip(id, file);
     return result;
+  }
+
+  @Get('/payment')
+  async orderPayment(@Query() query: ListOderPayment) {
+    const result = await this.orderService.listOrderPayment(query);
+    return { ...result };
   }
 
   @Get('/:id/image')

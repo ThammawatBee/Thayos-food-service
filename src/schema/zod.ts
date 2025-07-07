@@ -35,6 +35,14 @@ const ListCustomerSchema = z.object({
 
 export class ListCustomers extends createZodDto(ListCustomerSchema) {}
 
+const ListCustomerOrderItemSchema = z.object({
+  year: z.string(),
+});
+
+export class ListCustomerOrderItem extends createZodDto(
+  ListCustomerOrderItemSchema,
+) {}
+
 const CreateCustomerSchema = z.object({
   customerCode: z.string(),
   name: z.string(),
@@ -107,3 +115,12 @@ const CreateOrderSchema = z.object({
 });
 
 export class CreateOrder extends createZodDto(CreateOrderSchema) {}
+
+const ListOderPaymentSchema = z.object({
+  offset: z.string().optional(),
+  limit: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+});
+
+export class ListOderPayment extends createZodDto(ListOderPaymentSchema) {}

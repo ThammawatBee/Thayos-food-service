@@ -4,7 +4,7 @@ import { DateTime } from 'luxon';
 import { Holiday } from 'src/entities/holiday.entity';
 import { DeliveryOn, Order } from 'src/entities/order.entity';
 import { OrderItem } from 'src/entities/orderItem.entity';
-import { CreateOrder } from 'src/schema/zod';
+import { CreateOrder, ListOderPayment } from 'src/schema/zod';
 import { Repository } from 'typeorm';
 
 @Injectable()
@@ -52,13 +52,11 @@ export class OrderService {
       order.startDate,
       order.endDate,
     );
-    console.log('deliveryDates', deliveryDates);
 
     const calculateDeliveryDates = await this.calculateDateWithHolidays(
       order,
       deliveryDates,
     );
-    console.log('calculateDeliveryDates', calculateDeliveryDates);
 
     const newOrderItems = this.buildOrderItem(order, calculateDeliveryDates);
     await this.orderItemRepo.save(newOrderItems);
@@ -145,5 +143,31 @@ export class OrderService {
     }
 
     return result;
+  }
+
+  async listOrderPayment(options: ListOderPayment) {
+    const { startDate, endDate, limit, offset } = options;
+    const query = this.orderRepo.createQueryBuilder('order');
+    query.leftJoin('order.customer', 'customer');
+    if (startDate && endDate) {
+      query.andWhere('order.createdAt >= :start AND order.createdAt < :end', {
+        start: startDate,
+        end: endDate,
+      });
+    }
+    const count = await query.getCount();
+    query.orderBy('order.createdAt', 'DESC');
+    query.select([
+      'order.id',
+      'customer.fullname',
+      'order.createdAt',
+      'order.total',
+      'order.paymentType',
+      'order.slipFilename',
+    ]);
+    query.limit(+limit || 20);
+    query.offset(+offset || 0);
+    const payments = await query.getMany();
+    return { payments, count };
   }
 }
