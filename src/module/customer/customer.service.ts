@@ -1,6 +1,7 @@
 import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Customer } from 'src/entities/customer.entity';
+import { OrderItem } from 'src/entities/orderItem.entity';
 import { CreateCustomer, EditCustomer, ListCustomers } from 'src/schema/zod';
 import { Brackets, Repository } from 'typeorm';
 
@@ -9,6 +10,8 @@ export class CustomerService {
   constructor(
     @InjectRepository(Customer)
     private readonly customerRepo: Repository<Customer>,
+    @InjectRepository(OrderItem)
+    private readonly orderItemRepo: Repository<OrderItem>,
   ) {}
 
   async editUser(id: string, payload: EditCustomer) {
@@ -115,5 +118,16 @@ export class CustomerService {
       .where('id = :id', { id: id })
       .execute();
     return;
+  }
+
+  async listCustomerOrderItem(customerId: string, year: string) {
+    const orderItems = await this.orderItemRepo
+      .createQueryBuilder('orderItem')
+      .leftJoin('orderItem.order', 'order')
+      .leftJoin('order.customer', 'customer')
+      .where('customer.id = :customerId', { customerId })
+      .where('EXTRACT(YEAR FROM orderItem.deliveryAt) = :year', { year: +year })
+      .getMany();
+    return orderItems;
   }
 }

@@ -8,12 +8,30 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { CreateCustomer, EditCustomer, ListCustomers } from 'src/schema/zod';
+import {
+  CreateCustomer,
+  EditCustomer,
+  ListCustomerOrderItem,
+  ListCustomers,
+} from 'src/schema/zod';
 import { CustomerService } from './customer.service';
 
 @Controller('customers')
 export class CustomerController {
-  constructor(private readonly customerService: CustomerService) { }
+  constructor(private readonly customerService: CustomerService) {}
+
+  @Get(':id/order-items')
+  async listCustomerOrderItem(
+    @Param('id') id: string,
+    @Query() query: ListCustomerOrderItem,
+  ) {
+    const result = await this.customerService.listCustomerOrderItem(
+      id,
+      query.year,
+    );
+    return { orderItems: result };
+  }
+
   @Get()
   async listCustomers(@Query() query: ListCustomers) {
     const result = await this.customerService.listCustomers(query);

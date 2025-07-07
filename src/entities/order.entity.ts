@@ -78,7 +78,7 @@ export class Order {
   orderItems: OrderItem[];
 
   @Column({ type: 'jsonb', nullable: true })
-  preferences: DeliveryOn;
+  deliveryOn: DeliveryOn;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
