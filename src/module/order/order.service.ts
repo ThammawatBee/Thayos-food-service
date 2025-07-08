@@ -16,7 +16,7 @@ export class OrderService {
     private readonly holidayRepo: Repository<Holiday>,
     @InjectRepository(OrderItem)
     private readonly orderItemRepo: Repository<OrderItem>,
-  ) {}
+  ) { }
 
   async uploadSlip(orderId: string, file: Express.Multer.File) {
     const order = await this.orderRepo.findOne({ where: { id: orderId } });
@@ -75,9 +75,15 @@ export class OrderService {
         }
       });
     }
-    distribute('breakfast', order.breakfastCount);
-    distribute('lunch', order.lunchCount);
-    distribute('dinner', order.dinnerCount);
+    if (order.breakfastCount) {
+      distribute('breakfast', order.breakfastCount);
+    }
+    if (order.lunchCount) {
+      distribute('lunch', order.lunchCount);
+    }
+    if (order.dinnerCount) {
+      distribute('dinner', order.dinnerCount);
+    }
     return result;
   }
 
