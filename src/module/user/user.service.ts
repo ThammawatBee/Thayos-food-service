@@ -143,8 +143,8 @@ export class UserService {
     }
     const count = await query.getCount();
     query.orderBy('user.createdAt', 'DESC');
-    query.limit(+limit || 20);
-    query.offset(+offset || 0);
+    query.take(+limit || 20);
+    query.skip(+offset || 0);
     const users = await query.getMany();
     return { users, count };
   }

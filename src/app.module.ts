@@ -11,6 +11,9 @@ import { AuthModule } from './module/auth/authModule';
 import { CustomerModule } from './module/customer/customerModule';
 import { HolidayModule } from './module/holiday/holidayModule';
 import { OrderModule } from './module/order/orderModule';
+import { Settings } from 'luxon';
+
+Settings.defaultZone = 'Asia/Bangkok';
 
 @Module({
   imports: [

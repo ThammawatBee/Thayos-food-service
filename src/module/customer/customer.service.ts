@@ -12,9 +12,10 @@ export class CustomerService {
     private readonly customerRepo: Repository<Customer>,
     @InjectRepository(OrderItem)
     private readonly orderItemRepo: Repository<OrderItem>,
-  ) {}
+  ) { }
 
   async editUser(id: string, payload: EditCustomer) {
+    console.log('payload', payload)
     const user = await this.customerRepo.findOne({
       where: { id },
     });
@@ -61,8 +62,8 @@ export class CustomerService {
     }
     const count = await query.getCount();
     query.orderBy('customer.createdAt', 'DESC');
-    query.limit(+limit || 20);
-    query.offset(+offset || 0);
+    query.take(+limit || 20);
+    query.skip(+offset || 0);
     const customers = await query.getMany();
     return { customers, count };
   }
