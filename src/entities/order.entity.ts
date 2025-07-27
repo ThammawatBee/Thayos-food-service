@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 import { Customer } from './customer.entity';
 import { OrderItem } from './orderItem.entity';
+import { User } from './user.entity';
 
 export type DeliveryOn = {
   Sunday: boolean;
@@ -31,20 +32,38 @@ export class Order {
   @Column({ default: false })
   preferBreakfast: boolean;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'integer', default: 0 })
   breakfastCount: number;
+
+  @Column({ default: false })
+  preferBreakfastSnack: boolean;
+
+  @Column({ type: 'integer', default: 0 })
+  breakfastSnackCount: number;
 
   @Column({ default: false })
   preferLunch: boolean;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'integer', default: 0 })
   lunchCount: number;
+
+  @Column({ default: false })
+  preferLunchSnack: boolean;
+
+  @Column({ type: 'integer', default: 0 })
+  lunchSnackCount: number;
 
   @Column({ default: false })
   preferDinner: boolean;
 
-  @Column({ type: 'integer' })
+  @Column({ type: 'integer', default: 0 })
   dinnerCount: number;
+
+  @Column({ default: false })
+  preferDinnerSnack: boolean;
+
+  @Column({ type: 'integer', default: 0 })
+  dinnerSnackCount: number;
 
   @Column({ type: 'time' })
   deliveryTime: string;
@@ -68,6 +87,10 @@ export class Order {
   @JoinColumn({ name: 'customer_id' })
   customer: Customer;
 
+  @ManyToOne(() => User, (user) => user.orders)
+  @JoinColumn({ name: 'user_id' })
+  user: User;
+
   @Column('decimal', { precision: 10, scale: 2 })
   total: number;
 
@@ -79,6 +102,15 @@ export class Order {
 
   @Column({ type: 'jsonb', nullable: true })
   deliveryOn: DeliveryOn;
+
+  @Column({ type: 'text', nullable: true, default: null })
+  address?: string;
+
+  @Column({ type: 'text', nullable: true, default: null })
+  remark?: string;
+
+  @Column({ type: 'text', nullable: true, default: '' })
+  deliveryRemark?: string;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

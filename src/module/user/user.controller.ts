@@ -13,13 +13,13 @@ import {
 import { UserService } from './user.service';
 import { CreateUser, EditUser, ListUsers } from 'src/schema/zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
-import { UserPayload } from 'src/types/user-payload.interface';
-import { User } from 'src/decorator/user.decorator';
+// import { UserPayload } from 'src/types/user-payload.interface';
+// import { User } from 'src/decorator/user.decorator';
 
-// @UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard)
 @Controller('users')
 export class UserController {
-  constructor(private readonly userService: UserService) { }
+  constructor(private readonly userService: UserService) {}
 
   @Post('register')
   async register(@Body() dto: any) {

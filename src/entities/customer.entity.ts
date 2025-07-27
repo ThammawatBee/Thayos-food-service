@@ -27,8 +27,8 @@ export class Customer {
   @Column()
   pinAddress: string;
 
-  @Column({ type: 'text' })
-  remark: string;
+  @Column({ type: 'text', nullable: true })
+  remark?: string | null;
 
   @Column()
   mobileNumber: string;
@@ -53,6 +53,15 @@ export class Customer {
 
   @Column({ default: false })
   preferDinner: boolean;
+
+  @Column({ default: false })
+  preferBreakfastSnack: boolean;
+
+  @Column({ default: false })
+  preferLunchSnack: boolean;
+
+  @Column({ default: false })
+  preferDinnerSnack: boolean;
 
   @OneToMany(() => Order, (order) => order.customer)
   orders: Order[];

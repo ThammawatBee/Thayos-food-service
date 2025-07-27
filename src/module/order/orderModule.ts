@@ -8,10 +8,11 @@ import { OrderItem } from 'src/entities/orderItem.entity';
 import { Customer } from 'src/entities/customer.entity';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
+import { Bag } from 'src/entities/bag.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Holiday, User, Order, OrderItem, Customer]),
+    TypeOrmModule.forFeature([Holiday, User, Order, OrderItem, Customer, Bag]),
     AuthModule,
   ],
   providers: [OrderService],

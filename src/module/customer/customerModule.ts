@@ -13,4 +13,4 @@ import { OrderItem } from 'src/entities/orderItem.entity';
   controllers: [CustomerController],
   exports: [CustomerService],
 })
-export class CustomerModule { }
+export class CustomerModule {}

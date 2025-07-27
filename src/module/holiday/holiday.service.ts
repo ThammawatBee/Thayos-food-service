@@ -31,7 +31,6 @@ export class HolidayService {
         .delete()
         .from(Holiday)
         .where('date IN (:...date)', { date: payload.deleteHolidays })
-
         .execute();
     }
   }

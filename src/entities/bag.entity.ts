@@ -4,37 +4,38 @@ import {
   Entity,
   JoinColumn,
   ManyToOne,
+  OneToMany,
   UpdateDateColumn,
 } from 'typeorm';
+import { OrderItem } from './orderItem.entity';
 import { Order } from './order.entity';
-import { Bag } from './bag.entity';
 
-@Entity('order_items')
-export class OrderItem {
+@Entity('bags')
+export class Bag {
   @Column({ type: 'uuid', primary: true, default: () => 'gen_random_uuid()' })
   id: string;
 
   @Column()
-  type: string;
-
-  @ManyToOne(() => Order, (order) => order.orderItems)
-  @JoinColumn({ name: 'order_id' })
-  order: Order;
-
-  @ManyToOne(() => Bag, (bag) => bag.orderItems, {
-    onDelete: 'CASCADE',
-  })
-  @JoinColumn({ name: 'bag_id' })
-  bag: Bag;
+  noRemarkType: boolean;
 
   @Column({ type: 'date' })
   deliveryAt: string;
 
-  @Column({ type: 'text', nullable: true })
-  qrcode: string | null;
+  @OneToMany(() => OrderItem, (item) => item.bag, { cascade: ['remove'] })
+  orderItems: OrderItem[];
+
+  @ManyToOne(() => Order)
+  @JoinColumn({ name: 'order_id' })
+  order: Order;
+
+  @Column({ type: 'text', nullable: true, default: null })
+  address?: string;
+
+  @Column({ type: 'text', nullable: true, default: null })
+  basket?: string;
 
   @Column({ default: false })
-  inBagStatus: boolean;
+  inBasketStatus: boolean;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

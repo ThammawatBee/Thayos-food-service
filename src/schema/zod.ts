@@ -58,6 +58,9 @@ const CreateCustomerSchema = z.object({
   preferBreakfast: z.boolean(),
   preferLunch: z.boolean(),
   preferDinner: z.boolean(),
+  preferBreakfastSnack: z.boolean(),
+  preferLunchSnack: z.boolean(),
+  preferDinnerSnack: z.boolean(),
 });
 
 export class CreateCustomer extends createZodDto(CreateCustomerSchema) {}
@@ -76,6 +79,9 @@ const EditCustomerSchema = z.object({
   preferBreakfast: z.boolean(),
   preferLunch: z.boolean(),
   preferDinner: z.boolean(),
+  preferBreakfastSnack: z.boolean(),
+  preferLunchSnack: z.boolean(),
+  preferDinnerSnack: z.boolean(),
 });
 
 export class EditCustomer extends createZodDto(EditCustomerSchema) {}
@@ -89,12 +95,21 @@ export class UpdateHolidays extends createZodDto(UpdateHolidaysSchema) {}
 
 const CreateOrderSchema = z.object({
   type: z.string(),
+  address: z.string(),
   preferBreakfast: z.boolean(),
   preferLunch: z.boolean(),
   preferDinner: z.boolean(),
+  preferBreakfastSnack: z.boolean(),
+  preferLunchSnack: z.boolean(),
+  preferDinnerSnack: z.boolean(),
   breakfastCount: z.number(),
   lunchCount: z.number(),
   dinnerCount: z.number(),
+  breakfastSnackCount: z.number(),
+  lunchSnackCount: z.number(),
+  dinnerSnackCount: z.number(),
+  remark: z.string(),
+  deliveryRemark: z.string(),
   deliveryTime: z.string(),
   deliveryOn: z.object({
     Sunday: z.boolean(),
@@ -124,3 +139,79 @@ const ListOderPaymentSchema = z.object({
 });
 
 export class ListOderPayment extends createZodDto(ListOderPaymentSchema) {}
+
+const ListBagSchema = z.object({
+  offset: z.string().optional(),
+  limit: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  type: z.string().optional(),
+  customer: z.string().optional(),
+});
+
+export class ListBag extends createZodDto(ListBagSchema) {}
+
+const UpdateBagSchema = z.object({
+  id: z.string(),
+  basket: z.string(),
+});
+
+export class UpdateBag extends createZodDto(
+  z.object({ bags: z.array(UpdateBagSchema) }),
+) {}
+
+const UpdateBagDataSchema = z.object({
+  address: z.string(),
+  breakfast: z.number().int(),
+  lunch: z.number().int(),
+  dinner: z.number().int(),
+  breakfastSnack: z.number().int(),
+  lunchSnack: z.number().int(),
+  dinnerSnack: z.number().int(),
+});
+
+export class UpdateBagData extends createZodDto(UpdateBagDataSchema) {}
+
+const UpdateOrderSchema = z.object({
+  address: z.string(),
+  remark: z.string(),
+  deliveryRemark: z.string(),
+  preferBreakfast: z.boolean(),
+  preferLunch: z.boolean(),
+  preferDinner: z.boolean(),
+  preferBreakfastSnack: z.boolean(),
+  preferLunchSnack: z.boolean(),
+  preferDinnerSnack: z.boolean(),
+  breakfastCount: z.number(),
+  lunchCount: z.number(),
+  dinnerCount: z.number(),
+  breakfastSnackCount: z.number(),
+  lunchSnackCount: z.number(),
+  dinnerSnackCount: z.number(),
+});
+
+export class UpdateOrder extends createZodDto(UpdateOrderSchema) {}
+
+const ListOrderSchema = z.object({
+  offset: z.string().optional(),
+  limit: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  customer: z.string().optional(),
+});
+
+export class ListOrder extends createZodDto(ListOrderSchema) {}
+
+const VerifyOrderItemSchema = z.object({
+  bagId: z.string(),
+  orderItemId: z.string(),
+});
+
+export class VerifyOrderItem extends createZodDto(VerifyOrderItemSchema) {}
+
+const VerifyBagSchema = z.object({
+  bagId: z.string(),
+  basket: z.string(),
+});
+
+export class VerifyBag extends createZodDto(VerifyBagSchema) {}

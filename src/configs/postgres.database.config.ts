@@ -19,6 +19,9 @@ export const postgresDbConfig = (): PostgresConnectionOptions => ({
   synchronize: true,
   namingStrategy: new SnakeNamingStrategy(),
   ssl: true,
+  extra: {
+    options: '-c search_path=thayos_food',
+  },
 });
 
 if (
