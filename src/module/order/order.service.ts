@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   HttpException,
   HttpStatus,
   Injectable,
@@ -22,6 +23,8 @@ import {
   UpdateBag,
   UpdateBagData,
   UpdateOrder,
+  VerifyBag,
+  VerifyOrderItem,
 } from 'src/schema/zod';
 import { Brackets, DataSource, Repository } from 'typeorm';
 import { NoRemarkQRFormat } from 'src/constant/noRemarkQRFomat';
@@ -53,7 +56,7 @@ export class OrderService {
     @InjectRepository(Bag)
     private readonly bagRepo: Repository<Bag>,
     @InjectDataSource() private readonly dataSource: DataSource,
-  ) {}
+  ) { }
 
   async uploadSlip(orderId: string, file: Express.Multer.File) {
     const order = await this.orderRepo.findOne({ where: { id: orderId } });
@@ -147,8 +150,8 @@ export class OrderService {
           orderItem.bag = bagKeyByDeliveryAt[date];
           orderItem.qrcode = bagKeyByDeliveryAt[date].noRemarkType
             ? NoRemarkQRFormat[
-                `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
-              ]
+            `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
+            ]
             : null;
           result.push(orderItem);
         }
@@ -459,10 +462,9 @@ export class OrderService {
             orderItem.bag = bag;
             orderItem.qrcode = bag.noRemarkType
               ? NoRemarkQRFormat[
-                  `${DateTime.fromISO(bag.deliveryAt).toFormat('cccc')}-${
-                    item.type
-                  }`
-                ]
+              `${DateTime.fromISO(bag.deliveryAt).toFormat('cccc')}-${item.type
+              }`
+              ]
               : null;
             newOrderItems.push(orderItem);
           }
@@ -562,5 +564,90 @@ export class OrderService {
     query.skip(+offset || 0);
     const orders = await query.getMany();
     return { orders, count };
+  }
+
+  public async getBag(id: string) {
+    const query = this.bagRepo.createQueryBuilder('bag');
+    query.leftJoin('bag.order', 'order');
+    query.leftJoin('order.customer', 'customer');
+    query.leftJoinAndSelect('bag.orderItems', 'orderItems');
+    query.where('bag.id = :id', { id });
+    query.select([
+      'bag',
+      'orderItems',
+      'customer.fullname',
+      'customer.customerCode',
+      'customer.address',
+      'customer.remark',
+      'order.type',
+      'order.deliveryTime',
+      'order.address',
+      'order.remark',
+      'order.deliveryRemark',
+    ]);
+    const bag = await query.getOne();
+    if (!bag) throw new NotFoundException('Bag not found');
+    return bag;
+  }
+
+  public async verifyOrderItem(payload: VerifyOrderItem) {
+    const bag = await this.bagRepo.findOne({ where: { id: payload.bagId } });
+    if (!bag) throw new NotFoundException('Bag not found');
+    const orderItem = await this.orderItemRepo
+      .createQueryBuilder('orderItem')
+      .leftJoinAndSelect('orderItem.bag', 'bag')
+      .where('bag.id = :bagId', { bagId: payload.bagId })
+      .andWhere(
+        new Brackets((qb) => {
+          qb.where('orderItem.id = :orderItemId', {
+            orderItemId: payload.orderItemId,
+          });
+        }),
+      )
+      .getOne();
+    if (!orderItem) {
+      await this.dataSource
+        .createQueryBuilder()
+        .update(OrderItem)
+        .set({ inBagStatus: false })
+        .where('id = :orderItemId', { orderItemId: payload.orderItemId })
+        .execute();
+      throw new NotFoundException('OrderItem not found');
+    } else {
+      await this.dataSource
+        .createQueryBuilder()
+        .update(OrderItem)
+        .set({ inBagStatus: true })
+        .where('id = :orderItemId', { orderItemId: orderItem.id })
+        .execute();
+    }
+    return;
+  }
+
+  public async verifyBag(payload: VerifyBag) {
+    const bag = await this.bagRepo.findOne({ where: { id: payload.bagId } });
+    if (!bag) throw new NotFoundException('Bag not found');
+    const verifyBag = await this.orderItemRepo
+      .createQueryBuilder('bag')
+      .where('bag.id = :bagId', { bagId: payload.bagId })
+      .andWhere('bag.basket =:basket', { basket: payload.basket })
+      .getOne();
+    if (!verifyBag) {
+      await this.dataSource
+        .createQueryBuilder()
+        .update(Bag)
+        .set({ inBasketStatus: false })
+        .where('id = :bagId', { bagId: payload.bagId })
+        .execute();
+      throw new BadRequestException('Bag and Basket not match');
+    } else {
+      await this.dataSource
+        .createQueryBuilder()
+        .update(OrderItem)
+        .set({ inBasketStatus: true })
+        .where('id = :bagId', { bagId: payload.bagId })
+        .execute();
+    }
+    return;
   }
 }

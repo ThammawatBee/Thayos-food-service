@@ -34,6 +34,9 @@ export class Bag {
   @Column({ type: 'text', nullable: true, default: null })
   basket?: string;
 
+  @Column({ default: false })
+  inBasketStatus: boolean;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

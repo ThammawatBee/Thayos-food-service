@@ -25,6 +25,8 @@ import {
   UpdateBag,
   UpdateBagData,
   UpdateOrder,
+  VerifyBag,
+  VerifyOrderItem,
 } from 'src/schema/zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { User } from 'src/decorator/user.decorator';
@@ -66,6 +68,12 @@ export class OrderController {
     return this.orderService.exportBag(res, query);
   }
 
+  @Get('/bag/:id')
+  async getBag(@Param('id') id: string) {
+    const bag = await this.orderService.getBag(id);
+    return { bag };
+  }
+
   @Patch('/bag/:id')
   async uploadBag(@Param('id') id: string, @Body() body: UpdateBagData) {
     await this.orderService.updateBagData(id, body);
@@ -76,6 +84,18 @@ export class OrderController {
   async listBags(@Query() query: ListBag) {
     const result = await this.orderService.listBag(query);
     return { ...result };
+  }
+
+  @Post('/verify-order-item')
+  async verifyOrderItem(@Body() body: VerifyOrderItem) {
+    await this.orderService.verifyOrderItem(body);
+    return { status: 'verify orderItem success' };
+  }
+
+  @Post('/verify-bag')
+  async verifyBag(@Body() body: VerifyBag) {
+    await this.orderService.verifyBag(body);
+    return { status: 'verify bag success' };
   }
 
   @Patch('/bags')

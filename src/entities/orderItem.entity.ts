@@ -33,6 +33,9 @@ export class OrderItem {
   @Column({ type: 'text', nullable: true })
   qrcode: string | null;
 
+  @Column({ default: false })
+  inBagStatus: boolean;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 
