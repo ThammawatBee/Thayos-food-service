@@ -375,7 +375,7 @@ export class OrderService {
             deliveryAt: bag.deliveryAt,
             customerCode: bag.order.customer.customerCode,
             customerName: bag.order.customer.fullname,
-            address: bag.order.customer.address,
+            address: bag.address,
             menu: renderMenu(bag),
             remark: bag.order.customer.remark,
             basket: bag.basket || '',
