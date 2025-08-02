@@ -215,3 +215,13 @@ const VerifyBagSchema = z.object({
 });
 
 export class VerifyBag extends createZodDto(VerifyBagSchema) {}
+
+const ListLogSchema = z.object({
+  offset: z.string().optional(),
+  limit: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  type: z.string().optional(),
+});
+
+export class ListLog extends createZodDto(ListLogSchema) {}
