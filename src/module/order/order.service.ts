@@ -612,7 +612,7 @@ export class OrderService {
         .set({ inBagStatus: false })
         .where('id = :orderItemId', { orderItemId: payload.orderItemId })
         .execute();
-      throw new NotFoundException('OrderItem not found');
+      throw new NotFoundException('Not found Box in Bag');
     } else {
       await this.dataSource
         .createQueryBuilder()
@@ -627,7 +627,7 @@ export class OrderService {
   public async verifyBag(payload: VerifyBag) {
     const bag = await this.bagRepo.findOne({ where: { id: payload.bagId } });
     if (!bag) throw new NotFoundException('Bag not found');
-    const verifyBag = await this.orderItemRepo
+    const verifyBag = await this.bagRepo
       .createQueryBuilder('bag')
       .where('bag.id = :bagId', { bagId: payload.bagId })
       .andWhere('bag.basket =:basket', { basket: payload.basket })
@@ -643,7 +643,7 @@ export class OrderService {
     } else {
       await this.dataSource
         .createQueryBuilder()
-        .update(OrderItem)
+        .update(Bag)
         .set({ inBasketStatus: true })
         .where('id = :bagId', { bagId: payload.bagId })
         .execute();
