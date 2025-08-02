@@ -9,7 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'your-secret';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly userService: UserService) {}
+  constructor(private readonly userService: UserService) { }
   async validateUser(userCode: string, password: string) {
     const user = await this.userService.findByUserCode(userCode); // implement this
     if (!user || !(await bcrypt.compare(password, user.password))) {
@@ -19,8 +19,7 @@ export class AuthService {
   }
 
   async login(user: any) {
-    const payload = { sub: user.id, username: user.username };
-    const expiresInSeconds = 2 * 60 * 60; // 2 hours
+    const payload = { sub: user.id, userCode: user.userCode };
     const token = jwt.sign(payload, JWT_SECRET, {
       // expiresIn: expiresInSeconds,
     });
