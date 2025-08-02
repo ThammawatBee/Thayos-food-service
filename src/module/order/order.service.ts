@@ -440,14 +440,17 @@ export class OrderService {
       .where('bag.id = :id', { id })
       .andWhere('orderItem.type IN (:...types)', { types: typeToDelete })
       .getMany();
-    await this.dataSource
-      .createQueryBuilder()
-      .delete()
-      .from(OrderItem)
-      .where(`id IN (:...ids)`, {
-        ids: orderItemIdToDeletes.map((orderItem) => orderItem.id),
-      })
-      .execute();
+    const deleteIds = orderItemIdToDeletes.map((orderItem) => orderItem.id);
+    if (deleteIds.length) {
+      await this.dataSource
+        .createQueryBuilder()
+        .delete()
+        .from(OrderItem)
+        .where(`id IN (:...ids)`, {
+          ids: deleteIds,
+        })
+        .execute();
+    }
     typeToUpdate.forEach((item) => {
       const orderItemsByType = bag.orderItems.filter(
         (orderItem) => orderItem.type === item.type,
