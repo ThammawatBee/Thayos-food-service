@@ -10,6 +10,9 @@ import { Brackets, Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { RoleType, User } from '../../entities/user.entity';
 import { CreateUser, EditUser, ListUsers } from 'src/schema/zod';
+import { LogService } from '../log/log.service';
+import { UserPayload } from 'src/types/user-payload.interface';
+import { LogStatus, LogType } from 'src/entities/log.entity';
 
 const INIT_PASSWORD = process.env.INIT_PASSWORD || 'P@ssw0rd';
 
@@ -17,9 +20,10 @@ const INIT_PASSWORD = process.env.INIT_PASSWORD || 'P@ssw0rd';
 export class UserService {
   constructor(
     @InjectRepository(User) private readonly userRepo: Repository<User>,
-  ) {}
+    private readonly logService: LogService,
+  ) { }
 
-  async editUser(id: string, payload: EditUser) {
+  async editUser(id: string, payload: EditUser, operator?: UserPayload) {
     const user = await this.userRepo.findOne({
       where: { id },
     });
@@ -40,6 +44,14 @@ export class UserService {
         password: hashedPassword,
         role: payload.role as RoleType,
       });
+      if (operator) {
+        this.logService.createLog({
+          userId: operator.sub,
+          type: LogType.CREATE_USER,
+          detail: `Update user ${updatedUser.userCode} ${updatedUser.name}`,
+          status: LogStatus.SUCCESS,
+        });
+      }
       return {
         name: updatedUser.name,
         role: updatedUser.role,
@@ -57,7 +69,7 @@ export class UserService {
     }
   }
 
-  async createUser(payload: CreateUser) {
+  async createUser(payload: CreateUser, operator?: UserPayload) {
     const existing = await this.userRepo.findOne({
       where: { userCode: payload.userCode },
     });
@@ -79,7 +91,16 @@ export class UserService {
         role: payload.role as RoleType,
       });
 
-      return this.userRepo.save(user);
+      const newUser = await this.userRepo.save(user);
+      if (operator) {
+        this.logService.createLog({
+          userId: operator.sub,
+          type: LogType.CREATE_USER,
+          detail: `Create user ${newUser.userCode} ${newUser.name}`,
+          status: LogStatus.SUCCESS,
+        });
+      }
+      return newUser;
     } catch (error) {
       throw new HttpException(
         {
@@ -107,7 +128,7 @@ export class UserService {
     return result;
   }
 
-  async deleteUser(id: string) {
+  async deleteUser(id: string, operator?: UserPayload) {
     const user = await this.userRepo.findOne({
       where: { id },
     });
@@ -126,6 +147,14 @@ export class UserService {
       .from(User)
       .where('id = :id', { id: id })
       .execute();
+    if (operator) {
+      this.logService.createLog({
+        userId: operator.sub,
+        type: LogType.CREATE_USER,
+        detail: `Delete user ${user.userCode} ${user.name}`,
+        status: LogStatus.SUCCESS,
+      });
+    }
     return;
   }
 

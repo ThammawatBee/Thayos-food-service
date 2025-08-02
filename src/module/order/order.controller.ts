@@ -35,7 +35,7 @@ import { UserPayload } from 'src/types/user-payload.interface';
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
 export class OrderController {
-  constructor(private readonly orderService: OrderService) { }
+  constructor(private readonly orderService: OrderService) {}
 
   @Post(':id/upload-slip')
   @UseInterceptors(
@@ -75,8 +75,12 @@ export class OrderController {
   }
 
   @Patch('/bag/:id')
-  async uploadBag(@Param('id') id: string, @Body() body: UpdateBagData) {
-    await this.orderService.updateBagData(id, body);
+  async uploadBag(
+    @Param('id') id: string,
+    @Body() body: UpdateBagData,
+    @User() operator: UserPayload,
+  ) {
+    await this.orderService.updateBagData(id, body, operator);
     return { status: 'update bag success' };
   }
 
@@ -87,14 +91,17 @@ export class OrderController {
   }
 
   @Post('/verify-order-item')
-  async verifyOrderItem(@Body() body: VerifyOrderItem) {
-    await this.orderService.verifyOrderItem(body);
+  async verifyOrderItem(
+    @Body() body: VerifyOrderItem,
+    @User() operator: UserPayload,
+  ) {
+    await this.orderService.verifyOrderItem(body, operator);
     return { status: 'verify orderItem success' };
   }
 
   @Post('/verify-bag')
-  async verifyBag(@Body() body: VerifyBag) {
-    await this.orderService.verifyBag(body);
+  async verifyBag(@Body() body: VerifyBag, @User() operator: UserPayload) {
+    await this.orderService.verifyBag(body, operator);
     return { status: 'verify bag success' };
   }
 
@@ -111,8 +118,12 @@ export class OrderController {
   }
 
   @Patch('/:id')
-  async updateOrder(@Param('id') id: string, @Body() body: UpdateOrder) {
-    await this.orderService.updateOrder(id, body);
+  async updateOrder(
+    @Param('id') id: string,
+    @Body() body: UpdateOrder,
+    @User() operator: UserPayload,
+  ) {
+    await this.orderService.updateOrder(id, body, operator);
     return { status: 'update order success' };
   }
 
@@ -123,8 +134,16 @@ export class OrderController {
   }
 
   @Post('/')
-  async createOrder(@Body() payload: CreateOrder, @User() user: UserPayload) {
-    const order = await this.orderService.createOrder(payload, user.sub);
+  async createOrder(
+    @Body() payload: CreateOrder,
+    @User() user: UserPayload,
+    @User() operator: UserPayload,
+  ) {
+    const order = await this.orderService.createOrder(
+      payload,
+      user.sub,
+      operator,
+    );
     return { order };
   }
 }

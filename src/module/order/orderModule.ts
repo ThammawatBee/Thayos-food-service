@@ -9,11 +9,13 @@ import { Customer } from 'src/entities/customer.entity';
 import { OrderController } from './order.controller';
 import { OrderService } from './order.service';
 import { Bag } from 'src/entities/bag.entity';
+import { LogModule } from '../log/logModule';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Holiday, User, Order, OrderItem, Customer, Bag]),
     AuthModule,
+    LogModule,
   ],
   providers: [OrderService],
   controllers: [OrderController],

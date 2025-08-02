@@ -32,6 +32,10 @@ import { Response } from 'express';
 import toPairs from 'lodash/toPairs';
 import omit from 'lodash/omit';
 import { chunk } from 'lodash';
+import { LogService } from '../log/log.service';
+import { UserPayload } from 'src/types/user-payload.interface';
+import { LogStatus, LogType } from 'src/entities/log.entity';
+import { displayMenu } from 'src/utils/menu';
 
 const types = [
   { text: 'มื้อเช้า', value: 'breakfast' },
@@ -56,7 +60,8 @@ export class OrderService {
     @InjectRepository(Bag)
     private readonly bagRepo: Repository<Bag>,
     @InjectDataSource() private readonly dataSource: DataSource,
-  ) { }
+    private readonly logService: LogService,
+  ) {}
 
   async uploadSlip(orderId: string, file: Express.Multer.File) {
     const order = await this.orderRepo.findOne({ where: { id: orderId } });
@@ -74,7 +79,11 @@ export class OrderService {
     return order.slipFilename;
   }
 
-  async createOrder(payload: CreateOrder, userId: string) {
+  async createOrder(
+    payload: CreateOrder,
+    userId: string,
+    operator?: UserPayload,
+  ) {
     const order = this.orderRepo.create({
       ...payload,
       customer: {
@@ -87,6 +96,15 @@ export class OrderService {
     const noRemarkType = isNil(order.remark || null);
     const createdOrder = await this.orderRepo.save(order);
     await this.generateOrderItem(createdOrder, noRemarkType);
+    if (operator) {
+      this.logService.createLog({
+        customerId: payload.customerId,
+        userId: operator.sub,
+        type: LogType.CREATE_ORDER,
+        detail: `Create order delivery at ${payload.startDate} - ${payload.endDate}`,
+        status: LogStatus.SUCCESS,
+      });
+    }
     return createdOrder;
   }
 
@@ -409,12 +427,17 @@ export class OrderService {
     await this.dataSource.query(query);
   }
 
-  public async updateBagData(id: string, payload: UpdateBagData) {
+  public async updateBagData(
+    id: string,
+    payload: UpdateBagData,
+    operator?: UserPayload,
+  ) {
     const query = this.bagRepo.createQueryBuilder('bag');
     const newOrderItems: OrderItem[] = [];
     let orderItemIdsToDelete: string[] = [];
     query.leftJoinAndSelect('bag.orderItems', 'orderItems');
     query.leftJoinAndSelect('bag.order', 'order');
+    query.leftJoinAndSelect('order.customer', 'customer');
     query.where('bag.id = :id', { id: id });
     const bag = await query.getOne();
     if (!(DateTime.fromISO(bag.deliveryAt) > DateTime.local().startOf('day'))) {
@@ -432,7 +455,6 @@ export class OrderService {
     const typeToUpdate = toPairs(omit(payload, 'address'))
       .filter(([_, value]) => value > 0)
       .map(([type, value]) => ({ type, value }));
-
     const orderItemIdToDeletes = await this.dataSource
       .createQueryBuilder(OrderItem, 'orderItem')
       .select('orderItem.id')
@@ -440,14 +462,17 @@ export class OrderService {
       .where('bag.id = :id', { id })
       .andWhere('orderItem.type IN (:...types)', { types: typeToDelete })
       .getMany();
-    await this.dataSource
-      .createQueryBuilder()
-      .delete()
-      .from(OrderItem)
-      .where(`id IN (:...ids)`, {
-        ids: orderItemIdToDeletes.map((orderItem) => orderItem.id),
-      })
-      .execute();
+    const ids = orderItemIdToDeletes.map((orderItem) => orderItem.id);
+    if (ids.length) {
+      await this.dataSource
+        .createQueryBuilder()
+        .delete()
+        .from(OrderItem)
+        .where('id IN (:...ids)', {
+          ids: ids,
+        })
+        .execute();
+    }
     typeToUpdate.forEach((item) => {
       const orderItemsByType = bag.orderItems.filter(
         (orderItem) => orderItem.type === item.type,
@@ -497,15 +522,30 @@ export class OrderService {
       id,
       address: payload.address,
     });
+    if (operator) {
+      this.logService.createLog({
+        customerId: bag.order.customer?.id,
+        userId: operator.sub,
+        type: LogType.UPDATE_BAG,
+        detail: `Update bag date ${bag.deliveryAt}`,
+        status: LogStatus.SUCCESS,
+        bagId: bag.id,
+      });
+    }
     return;
   }
 
-  public async updateOrder(id: string, payload: UpdateOrder) {
+  public async updateOrder(
+    id: string,
+    payload: UpdateOrder,
+    operator?: UserPayload,
+  ) {
     await this.orderRepo.save({
       id,
       ...payload,
     });
     const query = this.orderRepo.createQueryBuilder('order');
+    query.leftJoinAndSelect('order.customer', 'customer');
     query.where('id = :id', { id: id });
     const order = await query.getOne();
     const bags = await this.bagRepo
@@ -529,6 +569,19 @@ export class OrderService {
     const newOrderItems = this.buildOrderItem(order, deliveryDates, newBags);
     for (const batch of chunk(newOrderItems, 200)) {
       await this.orderItemRepo.save(batch);
+    }
+    if (operator) {
+      const sortedBag = newBags.sort((a, b) =>
+        a.deliveryAt.localeCompare(b.deliveryAt),
+      );
+      this.logService.createLog({
+        customerId: order.customer?.id,
+        userId: operator.sub,
+        type: LogType.UPDATE_ORDER,
+        detail: `Update order date ${sortedBag?.[0]?.deliveryAt} - ${sortedBag?.[sortedBag.length - 1]?.deliveryAt
+          }`,
+        status: LogStatus.SUCCESS,
+      });
     }
   }
 
@@ -590,8 +643,14 @@ export class OrderService {
     return bag;
   }
 
-  public async verifyOrderItem(payload: VerifyOrderItem) {
-    const bag = await this.bagRepo.findOne({ where: { id: payload.bagId } });
+  public async verifyOrderItem(
+    payload: VerifyOrderItem,
+    operator?: UserPayload,
+  ) {
+    const bag = await this.bagRepo.findOne({
+      where: { id: payload.bagId },
+      relations: ['order', 'order.customer'],
+    });
     if (!bag) throw new NotFoundException('Bag not found');
     const orderItem = await this.orderItemRepo
       .createQueryBuilder('orderItem')
@@ -612,6 +671,16 @@ export class OrderService {
         .set({ inBagStatus: false })
         .where('id = :orderItemId', { orderItemId: payload.orderItemId })
         .execute();
+      if (operator) {
+        await this.logService.createLog({
+          customerId: bag.order.customer?.id,
+          userId: operator.sub,
+          type: LogType.CHECK_BOX,
+          detail: `Verify Box fail at Bag delivery at ${bag.deliveryAt}`,
+          status: LogStatus.FAIL,
+          bagId: payload.bagId,
+        });
+      }
       throw new NotFoundException('Not found Box in Bag');
     } else {
       await this.dataSource
@@ -620,12 +689,26 @@ export class OrderService {
         .set({ inBagStatus: true })
         .where('id = :orderItemId', { orderItemId: orderItem.id })
         .execute();
+      if (operator) {
+        this.logService.createLog({
+          customerId: bag.order.customer?.id,
+          userId: operator.sub,
+          type: LogType.CHECK_BOX,
+          detail: `Verify Box success at Bag delivery at ${bag.deliveryAt
+            } ${displayMenu(orderItem.type)}`,
+          status: LogStatus.SUCCESS,
+          bagId: payload.bagId,
+        });
+      }
     }
     return;
   }
 
-  public async verifyBag(payload: VerifyBag) {
-    const bag = await this.bagRepo.findOne({ where: { id: payload.bagId } });
+  public async verifyBag(payload: VerifyBag, operator?: UserPayload) {
+    const bag = await this.bagRepo.findOne({
+      where: { id: payload.bagId },
+      relations: ['order', 'order.customer'],
+    });
     if (!bag) throw new NotFoundException('Bag not found');
     const verifyBag = await this.bagRepo
       .createQueryBuilder('bag')
@@ -639,6 +722,16 @@ export class OrderService {
         .set({ inBasketStatus: false })
         .where('id = :bagId', { bagId: payload.bagId })
         .execute();
+      if (operator) {
+        await this.logService.createLog({
+          customerId: bag.order.customer?.id,
+          userId: operator.sub,
+          type: LogType.CHECK_BAG,
+          detail: `Verify Bag fail at delivery at ${bag.deliveryAt}`,
+          status: LogStatus.FAIL,
+          bagId: payload.bagId,
+        });
+      }
       throw new BadRequestException('Bag and Basket not match');
     } else {
       await this.dataSource
@@ -647,6 +740,16 @@ export class OrderService {
         .set({ inBasketStatus: true })
         .where('id = :bagId', { bagId: payload.bagId })
         .execute();
+      if (operator) {
+        await this.logService.createLog({
+          customerId: bag.order.customer?.id,
+          userId: operator.sub,
+          type: LogType.CHECK_BAG,
+          detail: `Verify Bag success at delivery at ${bag.deliveryAt}`,
+          status: LogStatus.SUCCESS,
+          bagId: payload.bagId,
+        });
+      }
     }
     return;
   }

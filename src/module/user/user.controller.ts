@@ -13,6 +13,8 @@ import {
 import { UserService } from './user.service';
 import { CreateUser, EditUser, ListUsers } from 'src/schema/zod';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { User } from 'src/decorator/user.decorator';
+import { UserPayload } from 'src/types/user-payload.interface';
 // import { UserPayload } from 'src/types/user-payload.interface';
 // import { User } from 'src/decorator/user.decorator';
 
@@ -27,8 +29,8 @@ export class UserController {
   }
 
   @Post()
-  async createUser(@Body() payload: CreateUser) {
-    return this.userService.createUser(payload);
+  async createUser(@Body() payload: CreateUser, @User() user: UserPayload) {
+    return this.userService.createUser(payload, user);
   }
 
   @Get()
@@ -38,14 +40,18 @@ export class UserController {
   }
 
   @Patch('/:id')
-  async editUser(@Param('id') id: string, @Body() body: EditUser) {
-    const user = await this.userService.editUser(id, body);
+  async editUser(
+    @Param('id') id: string,
+    @Body() body: EditUser,
+    @User() operator: UserPayload,
+  ) {
+    const user = await this.userService.editUser(id, body, operator);
     return { user };
   }
 
   @Delete('/:id')
-  async deleteUser(@Param('id') id: string) {
-    await this.userService.deleteUser(id);
+  async deleteUser(@Param('id') id: string, @User() operator: UserPayload) {
+    await this.userService.deleteUser(id, operator);
     return { status: 'delete user success' };
   }
 

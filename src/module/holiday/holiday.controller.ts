@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Patch, Query } from '@nestjs/common';
 import { HolidayService } from './holiday.service';
 import { UpdateHolidays } from 'src/schema/zod';
+import { User } from 'src/decorator/user.decorator';
+import { UserPayload } from 'src/types/user-payload.interface';
 
 @Controller('holidays')
 export class HolidayController {
@@ -12,8 +14,11 @@ export class HolidayController {
   }
 
   @Patch()
-  async patchHolidays(@Body() payload: UpdateHolidays) {
-    await this.holidayService.updateHolidays(payload);
+  async patchHolidays(
+    @Body() payload: UpdateHolidays,
+    @User() operator: UserPayload,
+  ) {
+    await this.holidayService.updateHolidays(payload, operator);
     return { status: 'Patch Holiday success' };
   }
 }
