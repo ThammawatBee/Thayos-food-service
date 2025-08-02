@@ -518,20 +518,22 @@ export class OrderService {
       .andWhere('order.id = :id', { id })
       .select(['bag.deliveryAt', 'bag.id', 'order'])
       .getMany();
-    const deliveryDates = bags.map((bag) => bag.deliveryAt);
-    await this.bagRepo
-      .createQueryBuilder()
-      .delete()
-      .from(Bag)
-      .where('id IN (:...ids)', {
-        ids: bags.map((bag) => bag.id),
-      })
-      .execute();
-    const noRemarkType = isNil(order.remark || null);
-    const newBags = await this.createBags(deliveryDates, order, noRemarkType);
-    const newOrderItems = this.buildOrderItem(order, deliveryDates, newBags);
-    for (const batch of chunk(newOrderItems, 200)) {
-      await this.orderItemRepo.save(batch);
+    if (bags.length) {
+      const deliveryDates = bags.map((bag) => bag.deliveryAt);
+      await this.bagRepo
+        .createQueryBuilder()
+        .delete()
+        .from(Bag)
+        .where('id IN (:...ids)', {
+          ids: bags.map((bag) => bag.id),
+        })
+        .execute();
+      const noRemarkType = isNil(order.remark || null);
+      const newBags = await this.createBags(deliveryDates, order, noRemarkType);
+      const newOrderItems = this.buildOrderItem(order, deliveryDates, newBags);
+      for (const batch of chunk(newOrderItems, 200)) {
+        await this.orderItemRepo.save(batch);
+      }
     }
   }
 
