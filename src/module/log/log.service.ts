@@ -4,6 +4,9 @@ import { DateTime } from 'luxon';
 import { Log, LogStatus, LogType } from 'src/entities/log.entity';
 import { ListLog } from 'src/schema/zod';
 import { Repository } from 'typeorm';
+import { Response } from 'express';
+import * as ExcelJS from 'exceljs';
+import { getLogLabel } from 'src/utils/log';
 
 type LogInput = {
   customerId?: string;
@@ -82,5 +85,119 @@ export class LogService {
     ]);
     const logs = await query.getMany();
     return { logs, count };
+  }
+
+  public async exportLog(response: Response, options: ListLog) {
+    response.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    response.setHeader(
+      'Content-Disposition',
+      'attachment; filename=reports.xlsx',
+    );
+    const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      stream: response, // STREAM directly to response
+      useStyles: true,
+      useSharedStrings: true,
+    });
+
+    const worksheet = workbook.addWorksheet('Logs');
+    worksheet.columns = [
+      { header: 'Date Time', key: 'createdAt', width: 20 },
+      { header: 'Operation', key: 'operation', width: 20 },
+      { header: 'Operator', key: 'operator', width: 20 },
+      { header: 'Customer', key: 'customer', width: 20 },
+      { header: 'Detail', key: 'detail', width: 20 },
+      { header: `Status`, key: 'status', width: 20 },
+    ];
+
+    const batchSize = 20;
+    let offset = 0;
+
+    while (true) {
+      const { logs } = await this.listLog({
+        ...options,
+        offset: `${offset}`,
+        limit: `${batchSize}`,
+      });
+      if (logs.length === 0) break;
+      logs.forEach((log) => {
+        worksheet
+          .addRow({
+            createdAt: DateTime.fromISO(log.createdAt.toISOString()).toFormat(
+              'dd/MM/yyyy-hh:mm',
+            ),
+            operation: getLogLabel(log.type),
+            operator: log.user.name,
+            customer: log.customer ? log.customer.fullname : '',
+            detail: log.detail,
+            status: log.status === 'success' ? 'Success' : 'Fail',
+          })
+          .commit(); // important in streaming mode
+      });
+      offset += batchSize;
+    }
+    worksheet.commit(); // commit worksheet
+
+    await workbook.commit();
+  }
+
+  public async exportMonitor(response: Response, options: ListLog) {
+    response.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    response.setHeader(
+      'Content-Disposition',
+      'attachment; filename=reports.xlsx',
+    );
+    const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      stream: response, // STREAM directly to response
+      useStyles: true,
+      useSharedStrings: true,
+    });
+
+    const worksheet = workbook.addWorksheet('Logs');
+    worksheet.columns = [
+      { header: 'วันที่ตรวจสอบ', key: 'createdAt', width: 20 },
+      { header: 'Order date', key: 'orderDate', width: 20 },
+      { header: 'Customer', key: 'customer', width: 20 },
+      { header: 'Detail', key: 'detail', width: 20 },
+      { header: 'ผู้ตรวจสอบ', key: 'user', width: 20 },
+      { header: `Status`, key: 'status', width: 20 },
+    ];
+
+    const batchSize = 20;
+    let offset = 0;
+
+    while (true) {
+      const { logs } = await this.listLog({
+        ...options,
+        offset: `${offset}`,
+        limit: `${batchSize}`,
+      });
+      if (logs.length === 0) break;
+      logs.forEach((log) => {
+        worksheet
+          .addRow({
+            createdAt: DateTime.fromISO(log.createdAt.toISOString()).toFormat(
+              'dd/MM/yyyy-hh:mm',
+            ),
+            orderDate: DateTime.fromISO(log.bag.deliveryAt).toFormat(
+              'dd/MM/yyyy',
+            ),
+            customer: log.customer ? log.customer.fullname : '',
+            user: log.user.name,
+            detail: log.detail,
+            status: log.status === 'success' ? 'Success' : 'Fail',
+          })
+          .commit(); // important in streaming mode
+      });
+      offset += batchSize;
+    }
+    worksheet.commit(); // commit worksheet
+
+    await workbook.commit();
   }
 }
