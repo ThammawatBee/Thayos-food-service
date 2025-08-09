@@ -63,7 +63,7 @@ export class OrderService {
     private readonly bagRepo: Repository<Bag>,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly logService: LogService,
-  ) { }
+  ) {}
 
   async uploadSlip(orderId: string, file: Express.Multer.File) {
     const order = await this.orderRepo.findOne({ where: { id: orderId } });
@@ -175,8 +175,8 @@ export class OrderService {
           orderItem.bag = bagKeyByDeliveryAt[date];
           orderItem.qrcode = bagKeyByDeliveryAt[date].noRemarkType
             ? NoRemarkQRFormat[
-            `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
-            ]
+                `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
+              ]
             : null;
           result.push(orderItem);
         }
@@ -482,14 +482,14 @@ export class OrderService {
       .where('bag.id = :id', { id })
       .andWhere('orderItem.type IN (:...types)', { types: typeToDelete })
       .getMany();
-    const ids = orderItemIdToDeletes.map((orderItem) => orderItem.id);
-    if (ids.length) {
+    const deleteIds = orderItemIdToDeletes.map((orderItem) => orderItem.id);
+    if (deleteIds.length) {
       await this.dataSource
         .createQueryBuilder()
         .delete()
         .from(OrderItem)
-        .where('id IN (:...ids)', {
-          ids: ids,
+        .where(`id IN (:...ids)`, {
+          ids: deleteIds,
         })
         .execute();
     }
@@ -507,9 +507,10 @@ export class OrderService {
             orderItem.bag = bag;
             orderItem.qrcode = bag.noRemarkType
               ? NoRemarkQRFormat[
-              `${DateTime.fromISO(bag.deliveryAt).toFormat('cccc')}-${item.type
-              }`
-              ]
+                  `${DateTime.fromISO(bag.deliveryAt).toFormat('cccc')}-${
+                    item.type
+                  }`
+                ]
               : null;
             newOrderItems.push(orderItem);
           }
@@ -575,33 +576,36 @@ export class OrderService {
       .andWhere('order.id = :id', { id })
       .select(['bag.deliveryAt', 'bag.id', 'order'])
       .getMany();
-    const deliveryDates = bags.map((bag) => bag.deliveryAt);
-    await this.bagRepo
-      .createQueryBuilder()
-      .delete()
-      .from(Bag)
-      .where('id IN (:...ids)', {
-        ids: bags.map((bag) => bag.id),
-      })
-      .execute();
-    const noRemarkType = isNil(order.remark || null);
-    const newBags = await this.createBags(deliveryDates, order, noRemarkType);
-    const newOrderItems = this.buildOrderItem(order, deliveryDates, newBags);
-    for (const batch of chunk(newOrderItems, 200)) {
-      await this.orderItemRepo.save(batch);
-    }
-    if (operator) {
-      const sortedBag = newBags.sort((a, b) =>
-        a.deliveryAt.localeCompare(b.deliveryAt),
-      );
-      this.logService.createLog({
-        customerId: order.customer?.id,
-        userId: operator.sub,
-        type: LogType.UPDATE_ORDER,
-        detail: `Update order date ${sortedBag?.[0]?.deliveryAt} - ${sortedBag?.[sortedBag.length - 1]?.deliveryAt
+    if (bags.length) {
+      const deliveryDates = bags.map((bag) => bag.deliveryAt);
+      await this.bagRepo
+        .createQueryBuilder()
+        .delete()
+        .from(Bag)
+        .where('id IN (:...ids)', {
+          ids: bags.map((bag) => bag.id),
+        })
+        .execute();
+      const noRemarkType = isNil(order.remark || null);
+      const newBags = await this.createBags(deliveryDates, order, noRemarkType);
+      const newOrderItems = this.buildOrderItem(order, deliveryDates, newBags);
+      for (const batch of chunk(newOrderItems, 200)) {
+        await this.orderItemRepo.save(batch);
+      }
+      if (operator) {
+        const sortedBag = newBags.sort((a, b) =>
+          a.deliveryAt.localeCompare(b.deliveryAt),
+        );
+        this.logService.createLog({
+          customerId: order.customer?.id,
+          userId: operator.sub,
+          type: LogType.UPDATE_ORDER,
+          detail: `Update order date ${sortedBag?.[0]?.deliveryAt} - ${
+            sortedBag?.[sortedBag.length - 1]?.deliveryAt
           }`,
-        status: LogStatus.SUCCESS,
-      });
+          status: LogStatus.SUCCESS,
+        });
+      }
     }
   }
 
@@ -743,8 +747,9 @@ export class OrderService {
             customerId: bags[0].order.customer?.id,
             userId: operator.sub,
             type: LogType.CHECK_BOX,
-            detail: `Verify Box success at Bag delivery at ${bags[0].deliveryAt
-              } ${displayMenu(orderItem.type)}`,
+            detail: `Verify Box success at Bag delivery at ${
+              bags[0].deliveryAt
+            } ${displayMenu(orderItem.type)}`,
             status: LogStatus.SUCCESS,
             bagId: bags[0].id,
           });
