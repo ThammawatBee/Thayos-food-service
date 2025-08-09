@@ -31,11 +31,13 @@ import { NoRemarkQRFormat } from 'src/constant/noRemarkQRFomat';
 import { Response } from 'express';
 import toPairs from 'lodash/toPairs';
 import omit from 'lodash/omit';
-import { chunk } from 'lodash';
+import { chunk, groupBy, sortBy, values } from 'lodash';
 import { LogService } from '../log/log.service';
 import { UserPayload } from 'src/types/user-payload.interface';
 import { LogStatus, LogType } from 'src/entities/log.entity';
-import { displayMenu } from 'src/utils/menu';
+import { displayMenu, indexMap } from 'src/utils/menu';
+import { groupDatesByWeekAndGroup, modifyGroupBag } from 'src/utils/bag';
+import { v4 as uuidv4 } from 'uuid';
 
 const types = [
   { text: 'มื้อเช้า', value: 'breakfast' },
@@ -61,7 +63,7 @@ export class OrderService {
     private readonly bagRepo: Repository<Bag>,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly logService: LogService,
-  ) {}
+  ) { }
 
   async uploadSlip(orderId: string, file: Express.Multer.File) {
     const order = await this.orderRepo.findOne({ where: { id: orderId } });
@@ -142,14 +144,19 @@ export class OrderService {
     noRemarkType: boolean,
   ) {
     const bags: Bag[] = [];
-    calculateDeliveryDates.forEach((date) => {
-      const bag = new Bag();
-      bag.deliveryAt = date;
-      bag.noRemarkType = noRemarkType;
-      bag.order = order;
-      bag.address = order.address;
-      bags.push(bag);
-    });
+    const grouped = groupDatesByWeekAndGroup(calculateDeliveryDates);
+    for (const dtList of values(grouped)) {
+      const qrcode = uuidv4(); // or custom logic
+      for (const dt of dtList) {
+        const bag = new Bag();
+        bag.deliveryAt = dt.toISODate();
+        bag.noRemarkType = noRemarkType;
+        bag.order = order;
+        bag.address = order.address;
+        bag.qrCode = qrcode;
+        bags.push(bag);
+      }
+    }
 
     const newBags = await this.bagRepo.save(bags);
     return newBags;
@@ -261,7 +268,15 @@ export class OrderService {
   }
 
   async listBag(options: ListBag) {
-    const { limit, offset, startDate, endDate, type, customer } = options;
+    const {
+      limit,
+      offset,
+      startDate,
+      endDate,
+      type,
+      customer,
+      getAll = false,
+    } = options;
     const query = this.bagRepo.createQueryBuilder('bag');
     query.leftJoin('bag.order', 'order');
     query.leftJoin('order.customer', 'customer');
@@ -294,8 +309,11 @@ export class OrderService {
     }
 
     const count = await query.getCount();
-    query.take(+limit || 20);
-    query.skip(+offset || 0);
+    query.orderBy('bag.deliveryAt', 'ASC');
+    if (!getAll) {
+      query.take(+limit || 20);
+      query.skip(+offset || 0);
+    }
     query.select([
       'bag',
       'orderItems',
@@ -354,10 +372,10 @@ export class OrderService {
       useSharedStrings: true,
     });
 
-    const renderMenu = (bag: Bag) => {
+    const renderMenu = (orderItems: OrderItem[]) => {
       let text = '';
       types.forEach((type) => {
-        const items = bag.orderItems.filter((item) => item.type === type.value);
+        const items = orderItems.filter((item) => item.type === type.value);
         if (items.length) {
           text = text + `${type.text}(${items.length}) `;
         }
@@ -366,6 +384,7 @@ export class OrderService {
     };
 
     const worksheet = workbook.addWorksheet('Bags');
+
     worksheet.columns = [
       { header: 'id', key: 'id', width: 20 },
       { header: 'วันที่', key: 'deliveryAt', width: 20 },
@@ -386,16 +405,17 @@ export class OrderService {
         limit: `${batchSize}`,
       });
       if (bags.length === 0) break;
-      bags.forEach((bag) => {
+      values(groupBy(bags, 'qrCode')).forEach((bags) => {
+        const bag = modifyGroupBag(bags);
         worksheet
           .addRow({
-            id: bag.id,
+            id: bag.qrCode,
             deliveryAt: bag.deliveryAt,
-            customerCode: bag.order.customer.customerCode,
-            customerName: bag.order.customer.fullname,
-            address: bag.order.customer.address,
-            menu: renderMenu(bag),
-            remark: bag.order.customer.remark,
+            customerCode: bag.customerCode,
+            customerName: bag.customerName,
+            address: bag.address,
+            menu: renderMenu(bag.orderItems),
+            remark: bag.remark,
             basket: bag.basket || '',
           })
           .commit(); // important in streaming mode
@@ -420,9 +440,9 @@ export class OrderService {
     const query = `
       UPDATE "bags"
       SET
-        basket = CASE id ${basketCases} END,
+        basket = CASE qr_code ${basketCases} END,
         updated_at = NOW()
-      WHERE id IN (${bagIds.join(',')});
+      WHERE qr_code IN (${bagIds.join(',')});
     `;
     await this.dataSource.query(query);
   }
@@ -643,19 +663,47 @@ export class OrderService {
     return bag;
   }
 
+  public async getBagByQrCode(id: string) {
+    try {
+      const query = this.bagRepo.createQueryBuilder('bag');
+      query.leftJoin('bag.order', 'order');
+      query.leftJoin('order.customer', 'customer');
+      query.leftJoinAndSelect('bag.orderItems', 'orderItems');
+      query.where('bag.qrCode = :id', { id });
+      query.select([
+        'bag',
+        'orderItems',
+        'customer.fullname',
+        'customer.customerCode',
+        'customer.address',
+        'customer.remark',
+        'order.type',
+        'order.deliveryTime',
+        'order.address',
+        'order.remark',
+        'order.deliveryRemark',
+      ]);
+      const bags = await query.getMany();
+      if (!bags.length) throw new NotFoundException('Bag not found');
+      return modifyGroupBag(bags);
+    } catch (err) {
+      throw new NotFoundException('Bag not found');
+    }
+  }
+
   public async verifyOrderItem(
     payload: VerifyOrderItem,
     operator?: UserPayload,
   ) {
-    const bag = await this.bagRepo.findOne({
-      where: { id: payload.bagId },
+    const bags = await this.bagRepo.find({
+      where: { qrCode: payload.bagId },
       relations: ['order', 'order.customer'],
     });
-    if (!bag) throw new NotFoundException('Bag not found');
+    if (!bags.length) throw new NotFoundException('Bag not found');
     const orderItem = await this.orderItemRepo
       .createQueryBuilder('orderItem')
       .leftJoinAndSelect('orderItem.bag', 'bag')
-      .where('bag.id = :bagId', { bagId: payload.bagId })
+      .where('bag.qrCode = :qrCode', { qrCode: payload.bagId })
       .andWhere(
         new Brackets((qb) => {
           qb.where('orderItem.id = :orderItemId', {
@@ -673,12 +721,12 @@ export class OrderService {
         .execute();
       if (operator) {
         await this.logService.createLog({
-          customerId: bag.order.customer?.id,
+          customerId: bags[0].order.customer?.id,
           userId: operator.sub,
           type: LogType.CHECK_BOX,
-          detail: `Verify Box fail at Bag delivery at ${bag.deliveryAt}`,
+          detail: `Verify Box fail at Bag delivery at ${bags[0].deliveryAt}`,
           status: LogStatus.FAIL,
-          bagId: payload.bagId,
+          bagId: bags[0].id,
         });
       }
       throw new NotFoundException('Not found Box in Bag');
@@ -690,29 +738,33 @@ export class OrderService {
         .where('id = :orderItemId', { orderItemId: orderItem.id })
         .execute();
       if (operator) {
-        this.logService.createLog({
-          customerId: bag.order.customer?.id,
-          userId: operator.sub,
-          type: LogType.CHECK_BOX,
-          detail: `Verify Box success at Bag delivery at ${bag.deliveryAt
-            } ${displayMenu(orderItem.type)}`,
-          status: LogStatus.SUCCESS,
-          bagId: payload.bagId,
-        });
+        try {
+          await this.logService.createLog({
+            customerId: bags[0].order.customer?.id,
+            userId: operator.sub,
+            type: LogType.CHECK_BOX,
+            detail: `Verify Box success at Bag delivery at ${bags[0].deliveryAt
+              } ${displayMenu(orderItem.type)}`,
+            status: LogStatus.SUCCESS,
+            bagId: bags[0].id,
+          });
+        } catch (err) {
+          console.log('err', err);
+        }
       }
     }
     return;
   }
 
   public async verifyBag(payload: VerifyBag, operator?: UserPayload) {
-    const bag = await this.bagRepo.findOne({
-      where: { id: payload.bagId },
+    const bags = await this.bagRepo.find({
+      where: { qrCode: payload.bagQrCode },
       relations: ['order', 'order.customer'],
     });
-    if (!bag) throw new NotFoundException('Bag not found');
+    if (!bags.length) throw new NotFoundException('Bag not found');
     const verifyBag = await this.bagRepo
       .createQueryBuilder('bag')
-      .where('bag.id = :bagId', { bagId: payload.bagId })
+      .where('bag.id = :bagId', { bagId: bags?.[0].id })
       .andWhere('bag.basket =:basket', { basket: payload.basket })
       .getOne();
     if (!verifyBag) {
@@ -720,16 +772,16 @@ export class OrderService {
         .createQueryBuilder()
         .update(Bag)
         .set({ inBasketStatus: false })
-        .where('id = :bagId', { bagId: payload.bagId })
+        .where('id IN(:...bagIds)', { bagIds: bags.map((bag) => bag.id) })
         .execute();
       if (operator) {
         await this.logService.createLog({
-          customerId: bag.order.customer?.id,
+          customerId: bags[0].order.customer?.id,
           userId: operator.sub,
           type: LogType.CHECK_BAG,
-          detail: `Verify Bag fail at delivery at ${bag.deliveryAt}`,
+          detail: `Verify Bag fail at delivery at ${bags[0].deliveryAt}`,
           status: LogStatus.FAIL,
-          bagId: payload.bagId,
+          bagId: bags[0].id,
         });
       }
       throw new BadRequestException('Bag and Basket not match');
@@ -738,19 +790,125 @@ export class OrderService {
         .createQueryBuilder()
         .update(Bag)
         .set({ inBasketStatus: true })
-        .where('id = :bagId', { bagId: payload.bagId })
+        .where('id IN(:...bagIds)', { bagIds: bags.map((bag) => bag.id) })
         .execute();
       if (operator) {
         await this.logService.createLog({
-          customerId: bag.order.customer?.id,
+          customerId: bags[0].order.customer?.id,
           userId: operator.sub,
           type: LogType.CHECK_BAG,
-          detail: `Verify Bag success at delivery at ${bag.deliveryAt}`,
+          detail: `Verify Bag fail at delivery at ${bags[0].deliveryAt}`,
           status: LogStatus.SUCCESS,
-          bagId: payload.bagId,
+          bagId: bags[0].id,
         });
       }
     }
     return;
+  }
+
+  public async deleteBag(bagId: string, operator?: UserPayload) {
+    const bag = await this.bagRepo.findOne({
+      where: { id: bagId },
+    });
+    if (!bag) {
+      throw new HttpException(
+        {
+          status: HttpStatus.NOT_FOUND,
+          errorKey: 'NOT_FOUND_BAG_TO_DELETE',
+        },
+        HttpStatus.NOT_FOUND,
+      );
+    }
+    await this.bagRepo
+      .createQueryBuilder()
+      .delete()
+      .from(Bag)
+      .where('id = :id', { id: bagId })
+      .execute();
+    if (operator) {
+      this.logService.createLog({
+        userId: operator.sub,
+        type: LogType.REMOVE_BAG,
+        detail: `Delete bag delivery at ${bag.deliveryAt}`,
+        status: LogStatus.SUCCESS,
+      });
+    }
+    return;
+  }
+
+  public async exportOrderItem(response: Response, options: ListBag) {
+    response.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    response.setHeader(
+      'Content-Disposition',
+      'attachment; filename=reports.xlsx',
+    );
+    const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      stream: response, // STREAM directly to response
+      useStyles: true,
+      useSharedStrings: true,
+    });
+    const worksheet = workbook.addWorksheet('Bags');
+    worksheet.columns = [
+      { header: 'วันที่', key: 'deliveryAt', width: 20 },
+      { header: 'รหัสลูกค้า', key: 'customerCode', width: 20 },
+      { header: 'ชื่อลูกค้า', key: 'customerName', width: 20 },
+      { header: 'ที่อยู่', key: 'address', width: 20 },
+      { header: `Remark`, key: 'remark', width: 20 },
+      { header: `Delivery Remark`, key: 'deliveryRemark', width: 20 },
+      { header: `มื้ออาหาร`, key: 'type', width: 50 },
+      { header: `Basket`, key: 'basket', width: 20 },
+    ];
+
+    const batchSize = 20;
+    let offset = 0;
+    while (true) {
+      const { bags } = await this.listBag({
+        ...options,
+        offset: `${offset}`,
+        limit: `${batchSize}`,
+      });
+      if (bags.length === 0) break;
+      bags.forEach((bag) => {
+        sortBy(bag.orderItems, (item) =>
+          indexMap.has(item.type) ? indexMap.get(item.type)! : Infinity,
+        ).forEach((orderItem) => {
+          worksheet
+            .addRow({
+              deliveryAt: bag.deliveryAt,
+              customerCode: bag.order.customer.customerCode,
+              customerName: bag.order.customer.fullname,
+              address: bag.order.customer.address,
+              remark: bag.order.customer.remark,
+              deliveryRemark: bag.order.deliveryRemark,
+              type: displayMenu(orderItem.type),
+              basket: bag.basket || '',
+            })
+            .commit(); // important in streaming mode
+        });
+      });
+      offset += batchSize;
+    }
+    worksheet.commit(); // commit worksheet
+
+    await workbook.commit();
+  }
+
+  public async getOrderItemSummary(options: ListBag) {
+    const { bags } = await this.listBag({ ...options, getAll: true });
+    let orderItems: OrderItem[] = [];
+    bags.forEach((bag) => {
+      orderItems = [...orderItems, ...bag.orderItems];
+    });
+    const summary = types.map((type) => {
+      return {
+        ...type,
+        count: orderItems.filter((orderItem) => orderItem.type === type.value)
+          .length,
+      };
+    });
+    return summary;
   }
 }

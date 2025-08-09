@@ -147,6 +147,7 @@ const ListBagSchema = z.object({
   endDate: z.string().optional(),
   type: z.string().optional(),
   customer: z.string().optional(),
+  getAll: z.boolean().optional(),
 });
 
 export class ListBag extends createZodDto(ListBagSchema) {}
@@ -210,7 +211,7 @@ const VerifyOrderItemSchema = z.object({
 export class VerifyOrderItem extends createZodDto(VerifyOrderItemSchema) {}
 
 const VerifyBagSchema = z.object({
-  bagId: z.string(),
+  bagQrCode: z.string(),
   basket: z.string(),
 });
 

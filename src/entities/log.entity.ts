@@ -22,6 +22,7 @@ export enum LogType {
   CHECK_BOX = 'check_box',
   CHECK_BAG = 'check_bag',
   UPDATE_HOLIDAY = 'update_holiday',
+  REMOVE_BAG = 'remove_bag',
 }
 
 export enum LogStatus {

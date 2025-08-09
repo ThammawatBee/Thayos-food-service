@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -35,7 +36,7 @@ import { UserPayload } from 'src/types/user-payload.interface';
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
 export class OrderController {
-  constructor(private readonly orderService: OrderService) {}
+  constructor(private readonly orderService: OrderService) { }
 
   @Post(':id/upload-slip')
   @UseInterceptors(
@@ -72,6 +73,18 @@ export class OrderController {
   async getBag(@Param('id') id: string) {
     const bag = await this.orderService.getBag(id);
     return { bag };
+  }
+
+  @Get('/bag/qr-code/:id')
+  async getBagByQrCOde(@Param('id') id: string) {
+    const bag = await this.orderService.getBagByQrCode(id);
+    return { bag };
+  }
+
+  @Delete('/bag/:id')
+  async deleteUser(@Param('id') id: string, @User() operator: UserPayload) {
+    await this.orderService.deleteBag(id, operator);
+    return { status: 'delete user success' };
   }
 
   @Patch('/bag/:id')
