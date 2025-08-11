@@ -69,6 +69,16 @@ export class OrderController {
     return this.orderService.exportBag(res, query);
   }
 
+  @Get('/order-items/export')
+  async exportOrderItems(@Res() res: Response, @Query() query: ListBag) {
+    return this.orderService.exportOrderItem(res, query);
+  }
+
+  @Get('/order-items/summary')
+  async getOrderItemSummary(@Query() query: ListBag) {
+    return this.orderService.getOrderItemSummary(query);
+  }
+
   @Get('/bag/:id')
   async getBag(@Param('id') id: string) {
     const bag = await this.orderService.getBag(id);

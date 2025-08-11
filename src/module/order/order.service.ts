@@ -63,7 +63,7 @@ export class OrderService {
     private readonly bagRepo: Repository<Bag>,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly logService: LogService,
-  ) {}
+  ) { }
 
   async uploadSlip(orderId: string, file: Express.Multer.File) {
     const order = await this.orderRepo.findOne({ where: { id: orderId } });
@@ -175,8 +175,8 @@ export class OrderService {
           orderItem.bag = bagKeyByDeliveryAt[date];
           orderItem.qrcode = bagKeyByDeliveryAt[date].noRemarkType
             ? NoRemarkQRFormat[
-                `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
-              ]
+            `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
+            ]
             : null;
           result.push(orderItem);
         }
@@ -323,6 +323,7 @@ export class OrderService {
       'customer.remark',
       'order.type',
       'order.deliveryTime',
+      'order.deliveryTimeEnd',
       'order.address',
       'order.remark',
       'order.deliveryRemark',
@@ -507,10 +508,9 @@ export class OrderService {
             orderItem.bag = bag;
             orderItem.qrcode = bag.noRemarkType
               ? NoRemarkQRFormat[
-                  `${DateTime.fromISO(bag.deliveryAt).toFormat('cccc')}-${
-                    item.type
-                  }`
-                ]
+              `${DateTime.fromISO(bag.deliveryAt).toFormat('cccc')}-${item.type
+              }`
+              ]
               : null;
             newOrderItems.push(orderItem);
           }
@@ -600,9 +600,8 @@ export class OrderService {
           customerId: order.customer?.id,
           userId: operator.sub,
           type: LogType.UPDATE_ORDER,
-          detail: `Update order date ${sortedBag?.[0]?.deliveryAt} - ${
-            sortedBag?.[sortedBag.length - 1]?.deliveryAt
-          }`,
+          detail: `Update order date ${sortedBag?.[0]?.deliveryAt} - ${sortedBag?.[sortedBag.length - 1]?.deliveryAt
+            }`,
           status: LogStatus.SUCCESS,
         });
       }
@@ -747,9 +746,8 @@ export class OrderService {
             customerId: bags[0].order.customer?.id,
             userId: operator.sub,
             type: LogType.CHECK_BOX,
-            detail: `Verify Box success at Bag delivery at ${
-              bags[0].deliveryAt
-            } ${displayMenu(orderItem.type)}`,
+            detail: `Verify Box success at Bag delivery at ${bags[0].deliveryAt
+              } ${displayMenu(orderItem.type)}`,
             status: LogStatus.SUCCESS,
             bagId: bags[0].id,
           });
