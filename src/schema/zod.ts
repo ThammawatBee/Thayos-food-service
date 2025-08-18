@@ -111,6 +111,7 @@ const CreateOrderSchema = z.object({
   remark: z.string(),
   deliveryRemark: z.string(),
   deliveryTime: z.string(),
+  deliveryTimeEnd: z.string(),
   deliveryOn: z.object({
     Sunday: z.boolean(),
     Monday: z.boolean(),
@@ -147,6 +148,10 @@ const ListBagSchema = z.object({
   endDate: z.string().optional(),
   type: z.string().optional(),
   customer: z.string().optional(),
+  getAll: z
+    .string()
+    .optional()
+    .transform((value) => value === 'true'),
 });
 
 export class ListBag extends createZodDto(ListBagSchema) {}
@@ -210,8 +215,18 @@ const VerifyOrderItemSchema = z.object({
 export class VerifyOrderItem extends createZodDto(VerifyOrderItemSchema) {}
 
 const VerifyBagSchema = z.object({
-  bagId: z.string(),
+  bagQrCode: z.string(),
   basket: z.string(),
 });
 
 export class VerifyBag extends createZodDto(VerifyBagSchema) {}
+
+const ListLogSchema = z.object({
+  offset: z.string().optional(),
+  limit: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  type: z.string().optional(),
+});
+
+export class ListLog extends createZodDto(ListLogSchema) {}

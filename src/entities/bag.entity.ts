@@ -37,6 +37,9 @@ export class Bag {
   @Column({ default: false })
   inBasketStatus: boolean;
 
+  @Column({ type: 'uuid' })
+  qrCode: string;
+
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;
 

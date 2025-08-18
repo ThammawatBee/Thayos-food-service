@@ -12,6 +12,7 @@ import { CustomerModule } from './module/customer/customerModule';
 import { HolidayModule } from './module/holiday/holidayModule';
 import { OrderModule } from './module/order/orderModule';
 import { Settings } from 'luxon';
+import { LogModule } from './module/log/logModule';
 
 Settings.defaultZone = 'Asia/Bangkok';
 
@@ -32,6 +33,7 @@ Settings.defaultZone = 'Asia/Bangkok';
     CustomerModule,
     HolidayModule,
     OrderModule,
+    LogModule,
   ],
   controllers: [AppController],
   providers: [

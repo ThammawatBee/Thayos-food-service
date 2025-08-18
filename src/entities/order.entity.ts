@@ -68,6 +68,9 @@ export class Order {
   @Column({ type: 'time' })
   deliveryTime: string;
 
+  @Column({ type: 'time' })
+  deliveryTimeEnd: string;
+
   @Column({ type: 'date' })
   startDate: string;
 
