@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Brackets, Repository } from 'typeorm';
-import * as bcrypt from 'bcrypt';
+import * as bcrypt from 'bcryptjs';
 import { RoleType, User } from '../../entities/user.entity';
 import { CreateUser, EditUser, ListUsers } from 'src/schema/zod';
 import { LogService } from '../log/log.service';

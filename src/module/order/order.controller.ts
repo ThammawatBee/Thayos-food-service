@@ -64,6 +64,11 @@ export class OrderController {
     return { ...result };
   }
 
+  @Get('/bags/print')
+  async listBagForPrint(@Query() query: ListBag) {
+    return this.orderService.listBagForPrint(query);
+  }
+
   @Get('/bags/export')
   async exportBags(@Res() res: Response, @Query() query: ListBag) {
     return this.orderService.exportBag(res, query);

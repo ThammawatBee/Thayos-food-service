@@ -267,7 +267,7 @@ export class OrderService {
     return result;
   }
 
-  async listBag(options: ListBag) {
+  async listBag(options: ListBag, qrCodes?: string[]) {
     const {
       limit,
       offset,
@@ -290,22 +290,26 @@ export class OrderService {
     } else {
       query.leftJoinAndSelect('bag.orderItems', 'orderItems');
     }
-    if (startDate && endDate) {
-      query.andWhere('bag.deliveryAt >= :start AND bag.deliveryAt <= :end', {
-        start: startDate,
-        end: endDate,
-      });
-    }
-    if (customer) {
-      query.andWhere(
-        new Brackets((qb) => {
-          qb.where('customer.customerCode ILIKE :input', {
-            input: `%${customer}%`,
-          }).orWhere('customer.name ILIKE :input', {
-            input: `%${customer}%`,
-          });
-        }),
-      );
+    if (qrCodes?.length) {
+      query.where(`bag.qrCode IN (:...qrCodes)`, { qrCodes });
+    } else {
+      if (startDate && endDate) {
+        query.andWhere('bag.deliveryAt >= :start AND bag.deliveryAt <= :end', {
+          start: startDate,
+          end: endDate,
+        });
+      }
+      if (customer) {
+        query.andWhere(
+          new Brackets((qb) => {
+            qb.where('customer.customerCode ILIKE :input', {
+              input: `%${customer}%`,
+            }).orWhere('customer.name ILIKE :input', {
+              input: `%${customer}%`,
+            });
+          }),
+        );
+      }
     }
 
     const count = await query.getCount();
@@ -393,18 +397,25 @@ export class OrderService {
       { header: 'ชื่อลูกค้า', key: 'customerName', width: 20 },
       { header: 'ที่อยู่', key: 'address', width: 20 },
       { header: `Remark`, key: 'remark', width: 20 },
-      { header: `เมณู`, key: 'menu', width: 50 },
+      { header: `Delivery Remark`, key: 'deliveryRemark', width: 20 },
+      { header: 'deliveryTime', key: 'deliveryTime', width: 20 },
+      { header: 'deliveryTimeEnd', key: 'deliveryTimeEnd', width: 20 },
+      { header: `เมนู`, key: 'menu', width: 50 },
       { header: `Basket`, key: 'basket', width: 20 },
     ];
 
     const batchSize = 20;
     let offset = 0;
+    const qrCodes = await this.listBagQrCode(options);
     while (true) {
-      const { bags } = await this.listBag({
-        ...options,
-        offset: `${offset}`,
-        limit: `${batchSize}`,
-      });
+      const { bags } = await this.listBag(
+        {
+          ...options,
+          offset: `${offset}`,
+          limit: `${batchSize}`,
+        },
+        qrCodes,
+      );
       if (bags.length === 0) break;
       values(groupBy(bags, 'qrCode')).forEach((bags) => {
         const bag = modifyGroupBag(bags);
@@ -416,8 +427,21 @@ export class OrderService {
             customerName: bag.customerName,
             address: bag.address,
             menu: renderMenu(bag.orderItems),
-            remark: bag.remark,
             basket: bag.basket || '',
+            remark: bag?.order?.remark,
+            deliveryRemark: bag?.order?.deliveryRemark,
+            deliveryTime: bag.order.deliveryTime
+              ? DateTime.fromFormat(
+                bag.order.deliveryTime,
+                'hh:mm:ss',
+              ).toFormat('hh:mm')
+              : '',
+            deliveryTimeEnd: bag.order.deliveryTimeEnd
+              ? DateTime.fromFormat(
+                bag.order.deliveryTimeEnd,
+                'hh:mm:ss',
+              ).toFormat('hh:mm')
+              : '',
           })
           .commit(); // important in streaming mode
       });
@@ -694,6 +718,60 @@ export class OrderService {
     }
   }
 
+  public async listBagQrCode(options: ListBag) {
+    const { startDate, endDate, type, customer } = options;
+    const query = this.bagRepo.createQueryBuilder('bag');
+    query.leftJoin('bag.order', 'order');
+    query.leftJoin('order.customer', 'customer');
+    if (type && type !== 'ALL') {
+      query.innerJoinAndSelect(
+        'bag.orderItems',
+        'orderItems',
+        'orderItems.type = :type',
+        { type },
+      );
+    } else {
+      query.leftJoinAndSelect('bag.orderItems', 'orderItems');
+    }
+    if (startDate && endDate) {
+      query.andWhere('bag.deliveryAt >= :start AND bag.deliveryAt <= :end', {
+        start: startDate,
+        end: endDate,
+      });
+    }
+    if (customer) {
+      query.andWhere(
+        new Brackets((qb) => {
+          qb.where('customer.customerCode ILIKE :input', {
+            input: `%${customer}%`,
+          }).orWhere('customer.name ILIKE :input', {
+            input: `%${customer}%`,
+          });
+        }),
+      );
+    }
+    query.select(['bag.qrCode']);
+    const bags = await query.getMany();
+    return bags.map((bag) => bag.qrCode);
+  }
+
+  public async listBagForPrint(options: ListBag) {
+    const qrCodes = await this.listBagQrCode(options);
+    const { bags } = await this.listBag(
+      {
+        ...options,
+        getAll: true,
+      },
+      qrCodes,
+    );
+    let modifyBags = [];
+    values(groupBy(bags, 'qrCode')).forEach((bags) => {
+      const bag = modifyGroupBag(bags);
+      modifyBags = [...modifyBags, bag];
+    });
+    return { bags: modifyBags };
+  }
+
   public async verifyOrderItem(
     payload: VerifyOrderItem,
     operator?: UserPayload,
@@ -900,7 +978,8 @@ export class OrderService {
   }
 
   public async getOrderItemSummary(options: ListBag) {
-    const { bags } = await this.listBag({ ...options, getAll: true });
+    const qrCodes = await this.listBagQrCode(options);
+    const { bags } = await this.listBag({ ...options, getAll: true }, qrCodes);
     let orderItems: OrderItem[] = [];
     bags.forEach((bag) => {
       orderItems = [...orderItems, ...bag.orderItems];

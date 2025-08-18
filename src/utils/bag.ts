@@ -51,6 +51,7 @@ export const modifyGroupBag = (bags: Bag[]) => {
       qrCode: sortedBags[0].qrCode,
       inBasketStatus: sortedBags[0].inBasketStatus,
       basket: sortedBags[0].basket,
+      order: sortedBags[0].order,
     };
   } else {
     return {
@@ -64,6 +65,7 @@ export const modifyGroupBag = (bags: Bag[]) => {
       qrCode: bags[0].qrCode,
       inBasketStatus: bags[0].inBasketStatus,
       basket: bags[0].basket,
+      order: bags[0].order,
     };
   }
 };
