@@ -33,11 +33,17 @@ export class Customer {
   @Column()
   mobileNumber: string;
 
+  @Column({ default: '' })
+  reserveMobileNumber: string;
+
   @Column()
   email: string;
 
   @Column({ type: 'time' })
   deliveryTime: string;
+
+  @Column({ type: 'time', nullable: true })
+  deliveryTimeEnd: string;
 
   @Column({ type: 'decimal', precision: 9, scale: 6, nullable: true })
   latitude: number;
