@@ -26,7 +26,7 @@ import {
   VerifyBag,
   VerifyOrderItem,
 } from 'src/schema/zod';
-import { Brackets, DataSource, Repository } from 'typeorm';
+import { Brackets, DataSource, In, Not, Repository } from 'typeorm';
 import { NoRemarkQRFormat } from 'src/constant/noRemarkQRFomat';
 import { Response } from 'express';
 import toPairs from 'lodash/toPairs';
@@ -47,6 +47,12 @@ const types = [
   { text: 'มื้อเย็น', value: 'dinner' },
   { text: 'ของว่างเย็น', value: 'dinnerSnack' },
 ];
+
+type DeliveryHeader = {
+  header: string;
+  key: string;
+  width: number;
+};
 
 @Injectable()
 export class OrderService {
@@ -267,7 +273,11 @@ export class OrderService {
     return result;
   }
 
-  async listBag(options: ListBag, qrCodes?: string[]) {
+  async listBag(
+    options: ListBag,
+    qrCodes?: string[],
+    additionFields?: string[],
+  ) {
     const {
       limit,
       offset,
@@ -321,16 +331,19 @@ export class OrderService {
     query.select([
       'bag',
       'orderItems',
+      'customer.id',
       'customer.fullname',
       'customer.customerCode',
       'customer.address',
       'customer.remark',
+      'order.id',
       'order.type',
       'order.deliveryTime',
       'order.deliveryTimeEnd',
       'order.address',
       'order.remark',
       'order.deliveryRemark',
+      ...(additionFields?.length ? additionFields : []),
     ]);
     const bags = await query.getMany();
     return { bags, count };
@@ -407,6 +420,11 @@ export class OrderService {
     const batchSize = 20;
     let offset = 0;
     const qrCodes = await this.listBagQrCode(options);
+    // const RED_FILL = {
+    //   type: 'pattern',
+    //   pattern: 'solid',
+    //   fgColor: { argb: 'FFFFCDD2' }, // light red
+    // } as const;
     while (true) {
       const { bags } = await this.listBag(
         {
@@ -419,31 +437,30 @@ export class OrderService {
       if (bags.length === 0) break;
       values(groupBy(bags, 'qrCode')).forEach((bags) => {
         const bag = modifyGroupBag(bags);
-        worksheet
-          .addRow({
-            id: bag.qrCode,
-            deliveryAt: bag.deliveryAt,
-            customerCode: bag.customerCode,
-            customerName: bag.customerName,
-            address: bag.address,
-            menu: renderMenu(bag.orderItems),
-            basket: bag.basket || '',
-            remark: bag?.order?.remark,
-            deliveryRemark: bag?.order?.deliveryRemark,
-            deliveryTime: bag.order.deliveryTime
-              ? DateTime.fromFormat(
-                  bag.order.deliveryTime,
-                  'hh:mm:ss',
-                ).toFormat('hh:mm')
-              : '',
-            deliveryTimeEnd: bag.order.deliveryTimeEnd
-              ? DateTime.fromFormat(
-                  bag.order.deliveryTimeEnd,
-                  'hh:mm:ss',
-                ).toFormat('hh:mm')
-              : '',
-          })
-          .commit(); // important in streaming mode
+        const row = worksheet.addRow({
+          id: bag.qrCode,
+          deliveryAt: bag.deliveryAt,
+          customerCode: bag.customerCode,
+          customerName: bag.customerName,
+          address: bag.address,
+          menu: renderMenu(bag.orderItems),
+          basket: bag.basket || '',
+          remark: bag?.order?.remark,
+          deliveryRemark: bag?.order?.deliveryRemark,
+          deliveryTime: bag.order.deliveryTime
+            ? DateTime.fromFormat(bag.order.deliveryTime, 'hh:mm:ss').toFormat(
+                'hh:mm',
+              )
+            : '',
+          deliveryTimeEnd: bag.order.deliveryTimeEnd
+            ? DateTime.fromFormat(
+                bag.order.deliveryTimeEnd,
+                'hh:mm:ss',
+              ).toFormat('hh:mm')
+            : '',
+        });
+        // row.getCell(1).fill = RED_FILL;
+        row.commit(); // important in streaming mode
       });
       offset += batchSize;
     }
@@ -995,5 +1012,257 @@ export class OrderService {
       };
     });
     return summary;
+  }
+
+  private genDeliveryColumnHeader(startDate: string, endDate: string) {
+    const start = DateTime.fromISO(startDate);
+    const end = DateTime.fromISO(endDate);
+
+    let headerColumns: DeliveryHeader[] = [];
+
+    let dates: string[] = [];
+
+    let current = start;
+    while (current <= end) {
+      const dateGroup = [
+        { header: '', key: `${current.toISODate()}-breakfast`, width: 20 },
+        { header: '', key: `${current.toISODate()}-breakfastSnack`, width: 20 },
+        {
+          header: `${current
+            .toFormat('ccc')
+            .toUpperCase()} ${current.toISODate()}`,
+          key: `${current.toISODate()}-lunch`,
+          width: 20,
+        },
+        { header: '', key: `${current.toISODate()}-lunchSnack`, width: 20 },
+        { header: '', key: `${current.toISODate()}-dinner`, width: 20 },
+        { header: '', key: `${current.toISODate()}-dinnerSnack`, width: 20 },
+        {
+          header: '',
+          key: `${current.toISODate()}-breakfastHealthy`,
+          width: 20,
+        },
+        {
+          header: '',
+          key: `${current.toISODate()}-lunchHealthy`,
+          width: 20,
+        },
+        {
+          header: '',
+          key: `${current.toISODate()}-dinnerHealthy`,
+          width: 20,
+        },
+        {
+          header: '',
+          key: `${current.toISODate()}-blank`,
+          width: 20,
+        },
+      ];
+      headerColumns = [...headerColumns, ...dateGroup];
+      dates = [...dates, current.toISODate()];
+      current = current.plus({ days: 1 });
+    }
+    return { dates, headerColumns };
+  }
+
+  private generateDeliveryRow(bag: Bag, dates: string[]) {
+    let rowData = {};
+    dates.forEach((date) => {
+      if (bag.deliveryAt === date) {
+        const { orderItems } = bag;
+        const countOrderItemsByType = (type: string) => {
+          return orderItems.filter((orderItem) => orderItem.type === type)
+            .length;
+        };
+        rowData = {
+          ...rowData,
+          [`${date}-breakfast`]: countOrderItemsByType('breakfast'),
+          [`${date}-breakfastSnack`]: countOrderItemsByType('breakfastSnack'),
+          [`${date}-lunch`]: countOrderItemsByType('lunch'),
+          [`${date}-lunchSnack`]: countOrderItemsByType('lunchSnack'),
+          [`${date}-dinner`]: countOrderItemsByType('dinner'),
+          [`${date}-dinnerSnack`]: countOrderItemsByType('dinnerSnack'),
+          [`${date}-breakfastHealthy`]:
+            bag.order.type === 'HEALTHY'
+              ? `${countOrderItemsByType('breakfast')}`
+              : '',
+          [`${date}-lunchHealthy`]:
+            bag.order.type === 'HEALTHY'
+              ? `${countOrderItemsByType('lunch')}`
+              : '',
+          [`${date}-dinnerHealthy`]:
+            bag.order.type === 'HEALTHY'
+              ? `${countOrderItemsByType('dinner')}`
+              : '',
+        };
+      }
+    });
+    return rowData;
+  }
+
+  private async getBagInPastWeekWithCustomerId(
+    startDate: string,
+    endDate: string,
+    customerIds: string[],
+  ) {
+    const query = this.bagRepo.createQueryBuilder('bag');
+    query.leftJoin('bag.order', 'order');
+    query.leftJoin('order.customer', 'customer');
+    query.where('bag.deliveryAt >= :start AND bag.deliveryAt <= :end', {
+      start: startDate,
+      end: endDate,
+    });
+    query.andWhere('customer.id IN (:...customerIds)', { customerIds });
+    query.select(['bag.id', 'order.id', 'customer.id']);
+    const bags = await query.getMany();
+    return keyBy(bags, 'order.customer.id');
+  }
+
+  public async exportDelivery(response: Response, options: ListBag) {
+    response.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    response.setHeader(
+      'Content-Disposition',
+      'attachment; filename=deliveries.xlsx',
+    );
+    const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      stream: response, // STREAM directly to response
+      useStyles: true,
+      useSharedStrings: true,
+    });
+    const worksheet = workbook.addWorksheet('Deliveries');
+    const { dates, headerColumns } = this.genDeliveryColumnHeader(
+      options.startDate,
+      options.endDate,
+    );
+    const { bags } = await this.listBag(
+      { ...options, getAll: true },
+      [],
+      [
+        'customer.mobileNumber',
+        'customer.reserveMobileNumber',
+        'customer.pinAddress',
+      ],
+    );
+    const day = DateTime.fromISO(options.startDate);
+
+    // Start of last week
+    const startOfLastWeek = day.minus({ weeks: 1 }).startOf('week');
+
+    // End of last week
+    const endOfLastWeek = day.minus({ weeks: 1 }).endOf('week');
+    const bagInPastWeekWithCustomerId =
+      await this.getBagInPastWeekWithCustomerId(
+        startOfLastWeek.toISODate(),
+        endOfLastWeek.toISODate(),
+        bags.map((bag) => bag.order.customer.id),
+      );
+    worksheet.columns = [
+      { header: 'ชื่อลูกค้า', key: 'customerName', width: 20 },
+      { header: 'เวลาจัดส่ง', key: 'deliveryTime', width: 20 },
+      { header: 'หมุด Lalamove', key: 'pin', width: 20 },
+      { header: 'ที่อยู่', key: 'address', width: 40 },
+      { header: `เบอร์โทร`, key: 'mobile', width: 20 },
+      { header: `เบอร์ สำรอง`, key: 'reserveMobileNumber', width: 20 },
+      { header: `หมายเหตุการจัดส่ง`, key: 'deliveryRemark', width: 30 },
+      { header: '', key: 'empty1', width: 20 },
+      { header: '', key: 'empty2', width: 20 },
+      { header: '', key: 'customerStatus', width: 20 },
+      ...headerColumns,
+    ];
+    worksheet.getRow(1).height = 25;
+
+    const getCustomerStatus = (customerId: string) => {
+      return bagInPastWeekWithCustomerId[customerId] ? 'c' : 'n';
+    };
+
+    const fillColumnColor = (color: string) =>
+      ({
+        type: 'pattern',
+        pattern: 'solid',
+        fgColor: { argb: color },
+      } as const);
+
+    bags.forEach((bag) => {
+      const row = worksheet.addRow({
+        customerName: bag.order.customer.fullname,
+        deliveryTime: `${DateTime.fromFormat(
+          bag.order.deliveryTime,
+          'hh:mm:ss',
+        ).toFormat('hh:mm')} - ${DateTime.fromFormat(
+          bag.order.deliveryTimeEnd,
+          'hh:mm:ss',
+        ).toFormat('hh:mm')}`,
+        pin: bag.order.customer.pinAddress,
+        address: bag.address,
+        deliveryRemark: bag.order.deliveryRemark,
+        mobile: bag.order.customer.mobileNumber,
+        reserveMobileNumber: bag.order.customer.reserveMobileNumber,
+        customerStatus: getCustomerStatus(bag.order.customer.id),
+        ...this.generateDeliveryRow(bag, dates),
+      });
+      let startPaint = 10;
+      dates.forEach(() => {
+        row.getCell(startPaint + 1).fill = fillColumnColor('FFCC02');
+        row.getCell(startPaint + 2).fill = fillColumnColor('FFCC99');
+        row.getCell(startPaint + 3).fill = fillColumnColor('FF6699');
+        row.getCell(startPaint + 4).fill = fillColumnColor('FFCCFF');
+        row.getCell(startPaint + 5).fill = fillColumnColor('009999');
+        row.getCell(startPaint + 6).fill = fillColumnColor('99FFCC');
+        row.getCell(startPaint + 7).fill = fillColumnColor('7F7F7F');
+        row.getCell(startPaint + 8).fill = fillColumnColor('7F7F7F');
+        row.getCell(startPaint + 9).fill = fillColumnColor('7F7F7F');
+        startPaint = startPaint + 10;
+      });
+
+      row.commit();
+    });
+
+    const notOrderCustomers = await this.customerRepo
+      .createQueryBuilder('customer')
+      .where('customer.id NOT IN (:...ids)', {
+        ids: bags.map((bag) => bag.order?.customer?.id),
+      })
+      .getMany();
+
+    notOrderCustomers.forEach((customer) => {
+      const row = worksheet.addRow({
+        customerName: customer.fullname,
+        deliveryTime: `${DateTime.fromFormat(
+          customer.deliveryTime,
+          'hh:mm:ss',
+        ).toFormat('hh:mm')} - ${DateTime.fromFormat(
+          customer.deliveryTimeEnd,
+          'hh:mm:ss',
+        ).toFormat('hh:mm')}`,
+        pin: customer.pinAddress,
+        address: customer.address,
+        deliveryRemark: '',
+        mobile: customer.mobileNumber,
+        reserveMobileNumber: customer.reserveMobileNumber,
+        ['empty2']: 'D',
+      });
+      row.getCell(10).fill = fillColumnColor('000000');
+      let startPaint = 10;
+      dates.forEach(() => {
+        row.getCell(startPaint + 1).fill = fillColumnColor('000000');
+        row.getCell(startPaint + 2).fill = fillColumnColor('000000');
+        row.getCell(startPaint + 3).fill = fillColumnColor('000000');
+        row.getCell(startPaint + 4).fill = fillColumnColor('000000');
+        row.getCell(startPaint + 5).fill = fillColumnColor('000000');
+        row.getCell(startPaint + 6).fill = fillColumnColor('000000');
+        row.getCell(startPaint + 7).fill = fillColumnColor('000000');
+        row.getCell(startPaint + 8).fill = fillColumnColor('000000');
+        row.getCell(startPaint + 9).fill = fillColumnColor('000000');
+        startPaint = startPaint + 10;
+      });
+      row.commit();
+    });
+
+    worksheet.commit(); // commit worksheet
+
+    await workbook.commit();
   }
 }
