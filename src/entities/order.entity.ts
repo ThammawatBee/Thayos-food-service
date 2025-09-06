@@ -21,6 +21,31 @@ export type DeliveryOn = {
   Saturday: boolean;
 };
 
+type IndividualOrder = {
+  preferBreakfast: boolean;
+  preferLunch: boolean;
+  preferDinner: boolean;
+  preferBreakfastSnack: boolean;
+  preferLunchSnack: boolean;
+  preferDinnerSnack: boolean;
+  breakfastCount: number;
+  lunchCount: number;
+  dinnerCount: number;
+  breakfastSnackCount: number;
+  lunchSnackCount: number;
+  dinnerSnackCount: number;
+};
+
+export type IndividualDelivery = {
+  Sunday: IndividualOrder;
+  Monday: IndividualOrder;
+  Tuesday: IndividualOrder;
+  Wednesday: IndividualOrder;
+  Thursday: IndividualOrder;
+  Friday: IndividualOrder;
+  Saturday: IndividualOrder;
+};
+
 @Entity('orders')
 export class Order {
   @Column({ type: 'uuid', primary: true, default: () => 'gen_random_uuid()' })
@@ -106,6 +131,9 @@ export class Order {
   @Column({ type: 'jsonb', nullable: true })
   deliveryOn: DeliveryOn;
 
+  @Column({ type: 'jsonb', nullable: true })
+  individualDelivery: IndividualDelivery;
+
   @Column({ type: 'text', nullable: true, default: null })
   address?: string;
 
@@ -114,6 +142,9 @@ export class Order {
 
   @Column({ type: 'text', nullable: true, default: '' })
   deliveryRemark?: string;
+
+  @Column({ nullable: true })
+  deliveryOrderType: string;
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

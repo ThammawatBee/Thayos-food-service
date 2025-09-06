@@ -1,7 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { DateTime } from 'luxon';
 import { Bag } from 'src/entities/bag.entity';
-import { OrderItem } from 'src/entities/orderItem.entity';
 
 export const getDeliveryGroup = (date: DateTime): string => {
   const day = date.weekday; // 1 = Mon ... 7 = Sun

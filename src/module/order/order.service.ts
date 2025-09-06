@@ -26,12 +26,28 @@ import {
   VerifyBag,
   VerifyOrderItem,
 } from 'src/schema/zod';
-import { Brackets, DataSource, In, Not, Repository } from 'typeorm';
+import {
+  Brackets,
+  DataSource,
+  In,
+  JsonContains,
+  Not,
+  Repository,
+} from 'typeorm';
 import { NoRemarkQRFormat } from 'src/constant/noRemarkQRFomat';
 import { Response } from 'express';
 import toPairs from 'lodash/toPairs';
 import omit from 'lodash/omit';
-import { chunk, groupBy, sortBy, values } from 'lodash';
+import {
+  chunk,
+  flatMap,
+  get,
+  groupBy,
+  keys,
+  pickBy,
+  sortBy,
+  values,
+} from 'lodash';
 import { LogService } from '../log/log.service';
 import { UserPayload } from 'src/types/user-payload.interface';
 import { LogStatus, LogType } from 'src/entities/log.entity';
@@ -69,7 +85,7 @@ export class OrderService {
     private readonly bagRepo: Repository<Bag>,
     @InjectDataSource() private readonly dataSource: DataSource,
     private readonly logService: LogService,
-  ) {}
+  ) { }
 
   async uploadSlip(orderId: string, file: Express.Multer.File) {
     const order = await this.orderRepo.findOne({ where: { id: orderId } });
@@ -181,30 +197,114 @@ export class OrderService {
           orderItem.bag = bagKeyByDeliveryAt[date];
           orderItem.qrcode = bagKeyByDeliveryAt[date].noRemarkType
             ? NoRemarkQRFormat[
-                `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
-              ]
+            `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
+            ]
             : null;
           result.push(orderItem);
         }
       });
     }
-    if (order.breakfastCount && order.preferBreakfast) {
-      distribute('breakfast', order.breakfastCount);
-    }
-    if (order.lunchCount && order.preferLunch) {
-      distribute('lunch', order.lunchCount);
-    }
-    if (order.dinnerCount && order.preferDinner) {
-      distribute('dinner', order.dinnerCount);
-    }
-    if (order.breakfastSnackCount && order.preferBreakfastSnack) {
-      distribute('breakfastSnack', order.breakfastSnackCount);
-    }
-    if (order.lunchSnackCount && order.preferLunchSnack) {
-      distribute('lunchSnack', order.lunchSnackCount);
-    }
-    if (order.dinnerCount && order.preferDinnerSnack) {
-      distribute('dinnerSnack', order.dinnerSnackCount);
+
+    const distributeIndividual = (
+      mealType: string,
+      count: number,
+      dates: string[],
+    ) => {
+      dates.forEach((date) => {
+        for (let i = 0; i < count; i++) {
+          const orderItem = new OrderItem();
+          orderItem.deliveryAt = date;
+          orderItem.order = order;
+          orderItem.type = mealType;
+          orderItem.bag = bagKeyByDeliveryAt[date];
+          orderItem.qrcode = bagKeyByDeliveryAt[date].noRemarkType
+            ? NoRemarkQRFormat[
+            `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
+            ]
+            : null;
+          result.push(orderItem);
+        }
+      });
+    };
+    if (order.deliveryOrderType === 'normal') {
+      if (order.breakfastCount && order.preferBreakfast) {
+        distribute('breakfast', order.breakfastCount);
+      }
+      if (order.lunchCount && order.preferLunch) {
+        distribute('lunch', order.lunchCount);
+      }
+      if (order.dinnerCount && order.preferDinner) {
+        distribute('dinner', order.dinnerCount);
+      }
+      if (order.breakfastSnackCount && order.preferBreakfastSnack) {
+        distribute('breakfastSnack', order.breakfastSnackCount);
+      }
+      if (order.lunchSnackCount && order.preferLunchSnack) {
+        distribute('lunchSnack', order.lunchSnackCount);
+      }
+      if (order.dinnerSnackCount && order.preferDinnerSnack) {
+        distribute('dinnerSnack', order.dinnerSnackCount);
+      }
+    } else if (order.deliveryOrderType === 'individual') {
+      const { deliveryOn, individualDelivery } = order;
+      keys(pickBy(deliveryOn)).forEach((day) => {
+        const datesOnDeliveryDay = calculateDeliveryDates.filter(
+          (calculateDeliveryDate) =>
+            DateTime.fromISO(calculateDeliveryDate).toFormat('cccc') === day,
+        );
+        const individualOrder = get(individualDelivery, day);
+        if (individualOrder.breakfastCount && individualOrder.preferBreakfast) {
+          distributeIndividual(
+            'breakfast',
+            individualOrder.breakfastCount,
+            datesOnDeliveryDay,
+          );
+        }
+        if (individualOrder.lunchCount && individualOrder.preferLunch) {
+          distributeIndividual(
+            'lunch',
+            individualOrder.lunchCount,
+            datesOnDeliveryDay,
+          );
+        }
+        if (individualOrder.dinnerCount && individualOrder.preferDinner) {
+          distributeIndividual(
+            'dinner',
+            individualOrder.dinnerCount,
+            datesOnDeliveryDay,
+          );
+        }
+        if (
+          individualOrder.breakfastSnackCount &&
+          individualOrder.preferBreakfastSnack
+        ) {
+          distributeIndividual(
+            'breakfastSnack',
+            individualOrder.breakfastSnackCount,
+            datesOnDeliveryDay,
+          );
+        }
+        if (
+          individualOrder.lunchSnackCount &&
+          individualOrder.preferLunchSnack
+        ) {
+          distributeIndividual(
+            'lunchSnack',
+            individualOrder.lunchSnackCount,
+            datesOnDeliveryDay,
+          );
+        }
+        if (
+          individualOrder.dinnerSnackCount &&
+          individualOrder.preferDinnerSnack
+        ) {
+          distributeIndividual(
+            'dinnerSnack',
+            individualOrder.dinnerSnackCount,
+            datesOnDeliveryDay,
+          );
+        }
+      });
     }
     return result;
   }
@@ -449,14 +549,14 @@ export class OrderService {
           deliveryRemark: bag?.order?.deliveryRemark,
           deliveryTime: bag.order.deliveryTime
             ? DateTime.fromFormat(bag.order.deliveryTime, 'hh:mm:ss').toFormat(
-                'hh:mm',
-              )
+              'hh:mm',
+            )
             : '',
           deliveryTimeEnd: bag.order.deliveryTimeEnd
             ? DateTime.fromFormat(
-                bag.order.deliveryTimeEnd,
-                'hh:mm:ss',
-              ).toFormat('hh:mm')
+              bag.order.deliveryTimeEnd,
+              'hh:mm:ss',
+            ).toFormat('hh:mm')
             : '',
         });
         // row.getCell(1).fill = RED_FILL;
@@ -549,10 +649,9 @@ export class OrderService {
             orderItem.bag = bag;
             orderItem.qrcode = bag.noRemarkType
               ? NoRemarkQRFormat[
-                  `${DateTime.fromISO(bag.deliveryAt).toFormat('cccc')}-${
-                    item.type
-                  }`
-                ]
+              `${DateTime.fromISO(bag.deliveryAt).toFormat('cccc')}-${item.type
+              }`
+              ]
               : null;
             newOrderItems.push(orderItem);
           }
@@ -609,7 +708,7 @@ export class OrderService {
     });
     const query = this.orderRepo.createQueryBuilder('order');
     query.leftJoinAndSelect('order.customer', 'customer');
-    query.where('id = :id', { id: id });
+    query.where('order.id = :id', { id: id });
     const order = await query.getOne();
     const bags = await this.bagRepo
       .createQueryBuilder('bag')
@@ -642,9 +741,8 @@ export class OrderService {
           customerId: order.customer?.id,
           userId: operator.sub,
           type: LogType.UPDATE_ORDER,
-          detail: `Update order date ${sortedBag?.[0]?.deliveryAt} - ${
-            sortedBag?.[sortedBag.length - 1]?.deliveryAt
-          }`,
+          detail: `Update order date ${sortedBag?.[0]?.deliveryAt} - ${sortedBag?.[sortedBag.length - 1]?.deliveryAt
+            }`,
           status: LogStatus.SUCCESS,
         });
       }
@@ -843,9 +941,8 @@ export class OrderService {
             customerId: bags[0].order.customer?.id,
             userId: operator.sub,
             type: LogType.CHECK_BOX,
-            detail: `Verify Box success at Bag delivery at ${
-              bags[0].deliveryAt
-            } ${displayMenu(orderItem.type)}`,
+            detail: `Verify Box success at Bag delivery at ${bags[0].deliveryAt
+              } ${displayMenu(orderItem.type)}`,
             status: LogStatus.SUCCESS,
             bagId: bags[0].id,
           });
@@ -1065,6 +1162,44 @@ export class OrderService {
     return { dates, headerColumns };
   }
 
+  private generateDeliverySummaryRow(bags: Bag[], dates: string[]) {
+    let rowData = {};
+    dates.forEach((date) => {
+      const bagsInDay = bags.filter((bag) => bag.deliveryAt === date);
+      const bagsInDayTypeHealthy = bags.filter(
+        (bag) => bag.deliveryAt === date && bag.order.type === 'HEALTHY',
+      );
+      const allOrderItems: OrderItem[] = flatMap(bagsInDay, 'orderItems');
+      const allOrderItemsHealthy: OrderItem[] = flatMap(
+        bagsInDayTypeHealthy,
+        'orderItems',
+      );
+
+      const countOrderItemsByType = (type: string) => {
+        return allOrderItems.filter((orderItem) => orderItem.type === type)
+          .length;
+      };
+      const countOrderItemsHealthy = (type: string) => {
+        return allOrderItemsHealthy.filter(
+          (orderItem) => orderItem.type === type,
+        ).length;
+      };
+      rowData = {
+        ...rowData,
+        [`${date}-breakfast`]: countOrderItemsByType('breakfast'),
+        [`${date}-breakfastSnack`]: countOrderItemsByType('breakfastSnack'),
+        [`${date}-lunch`]: countOrderItemsByType('lunch'),
+        [`${date}-lunchSnack`]: countOrderItemsByType('lunchSnack'),
+        [`${date}-dinner`]: countOrderItemsByType('dinner'),
+        [`${date}-dinnerSnack`]: countOrderItemsByType('dinnerSnack'),
+        [`${date}-breakfastHealthy`]: countOrderItemsHealthy('breakfast'),
+        [`${date}-lunchHealthy`]: countOrderItemsHealthy('lunch'),
+        [`${date}-dinnerHealthy`]: countOrderItemsHealthy('dinner'),
+      };
+    });
+    return rowData;
+  }
+
   private generateDeliveryRow(bag: Bag, dates: string[]) {
     let rowData = {};
     dates.forEach((date) => {
@@ -1167,7 +1302,9 @@ export class OrderService {
       { header: `เบอร์โทร`, key: 'mobile', width: 20 },
       { header: `เบอร์ สำรอง`, key: 'reserveMobileNumber', width: 20 },
       { header: `หมายเหตุการจัดส่ง`, key: 'deliveryRemark', width: 30 },
-      { header: '', key: 'empty1', width: 20 },
+      { header: `มื้ออาหาร`, key: 'menu', width: 20 },
+      { header: `โปรแกรม`, key: 'type', width: 20 },
+      { header: `Snack`, key: 'snack', width: 20 },
       { header: '', key: 'empty2', width: 20 },
       { header: '', key: 'customerStatus', width: 20 },
       ...headerColumns,
@@ -1179,11 +1316,11 @@ export class OrderService {
     };
 
     const fillColumnColor = (color: string) =>
-      ({
-        type: 'pattern',
-        pattern: 'solid',
-        fgColor: { argb: color },
-      } as const);
+    ({
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: color },
+    } as const);
 
     bags.forEach((bag) => {
       const row = worksheet.addRow({
@@ -1201,9 +1338,23 @@ export class OrderService {
         mobile: bag.order.customer.mobileNumber,
         reserveMobileNumber: bag.order.customer.reserveMobileNumber,
         customerStatus: getCustomerStatus(bag.order.customer.id),
+        menu: bag.orderItems.length,
+        type: bag.order.type === 'HEALTHY' ? 'Healthy' : 'Diet',
+        snack: bag.orderItems.filter((orderItem) =>
+          orderItem.type.includes('Snack'),
+        )?.length
+          ? 'S'
+          : '',
         ...this.generateDeliveryRow(bag, dates),
       });
-      let startPaint = 10;
+      let startPaint = 13;
+      if (
+        bag.orderItems.length >= 4 &&
+        bag.orderItems.filter((orderItem) => orderItem.type.includes('Snack'))
+          ?.length > 1
+      ) {
+        row.getCell(8).fill = fillColumnColor('00B04F');
+      }
       dates.forEach(() => {
         row.getCell(startPaint + 1).fill = fillColumnColor('FFCC02');
         row.getCell(startPaint + 2).fill = fillColumnColor('FFCC99');
@@ -1244,8 +1395,8 @@ export class OrderService {
         reserveMobileNumber: customer.reserveMobileNumber,
         ['empty2']: 'D',
       });
-      row.getCell(10).fill = fillColumnColor('000000');
-      let startPaint = 10;
+      row.getCell(13).fill = fillColumnColor('000000');
+      let startPaint = 13;
       dates.forEach(() => {
         row.getCell(startPaint + 1).fill = fillColumnColor('000000');
         row.getCell(startPaint + 2).fill = fillColumnColor('000000');
@@ -1260,6 +1411,15 @@ export class OrderService {
       });
       row.commit();
     });
+
+    // add one empty row
+    worksheet.addRow({}).commit();
+    worksheet
+      .addRow({
+        customerStatus: 'Total',
+        ...this.generateDeliverySummaryRow(bags, dates),
+      })
+      .commit();
 
     worksheet.commit(); // commit worksheet
 
