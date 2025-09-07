@@ -1305,6 +1305,7 @@ export class OrderService {
       { header: `มื้ออาหาร`, key: 'menu', width: 20 },
       { header: `โปรแกรม`, key: 'type', width: 20 },
       { header: `Snack`, key: 'snack', width: 20 },
+      { header: '', key: 'empty1', width: 20 },
       { header: '', key: 'empty2', width: 20 },
       { header: '', key: 'customerStatus', width: 20 },
       ...headerColumns,
