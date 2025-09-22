@@ -52,7 +52,11 @@ import { LogService } from '../log/log.service';
 import { UserPayload } from 'src/types/user-payload.interface';
 import { LogStatus, LogType } from 'src/entities/log.entity';
 import { displayMenu, indexMap } from 'src/utils/menu';
-import { groupDatesByWeekAndGroup, modifyGroupBag } from 'src/utils/bag';
+import {
+  groupDatesByWeekAndGroup,
+  modifyDeliverBag,
+  modifyGroupBag,
+} from 'src/utils/bag';
 import { v4 as uuidv4 } from 'uuid';
 
 const types = [
@@ -1203,8 +1207,10 @@ export class OrderService {
   private generateDeliveryRow(bag: Bag, dates: string[]) {
     let rowData = {};
     dates.forEach((date) => {
-      if (bag.deliveryAt === date) {
-        const { orderItems } = bag;
+      const orderItems = bag.orderItems.filter(
+        (orderItem) => orderItem.deliveryAt === date,
+      );
+      if (orderItems.length) {
         const countOrderItemsByType = (type: string) => {
           return orderItems.filter((orderItem) => orderItem.type === type)
             .length;
@@ -1323,7 +1329,16 @@ export class OrderService {
       fgColor: { argb: color },
     } as const);
 
-    bags.forEach((bag) => {
+    let modifyBags = [];
+    values(groupBy(bags, (bag) => `${bag.order.id}:${bag.address}`)).forEach(
+      (bags) => {
+        const bag = modifyDeliverBag(bags);
+        modifyBags = [...modifyBags, bag];
+      },
+    );
+    console.log('modifyBags', JSON.stringify(modifyBags));
+
+    modifyBags.forEach((bag) => {
       const row = worksheet.addRow({
         customerName: bag.order.customer.fullname,
         deliveryTime: `${DateTime.fromFormat(
@@ -1352,7 +1367,7 @@ export class OrderService {
       if (
         bag.orderItems.length >= 4 &&
         bag.orderItems.filter((orderItem) => orderItem.type.includes('Snack'))
-          ?.length > 1
+          ?.length >= 1
       ) {
         row.getCell(8).fill = fillColumnColor('00B04F');
       }
