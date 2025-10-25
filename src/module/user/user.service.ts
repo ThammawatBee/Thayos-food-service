@@ -14,8 +14,6 @@ import { LogService } from '../log/log.service';
 import { UserPayload } from 'src/types/user-payload.interface';
 import { LogStatus, LogType } from 'src/entities/log.entity';
 
-const INIT_PASSWORD = process.env.INIT_PASSWORD || 'P@ssw0rd';
-
 @Injectable()
 export class UserService {
   constructor(

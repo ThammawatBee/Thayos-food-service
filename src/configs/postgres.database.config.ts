@@ -7,19 +7,19 @@ import { PostgresConnectionOptions } from 'typeorm/driver/postgres/PostgresConne
 
 export const postgresDbConfig = (): PostgresConnectionOptions => ({
   type: 'postgres',
-  host: 'localhost',
-  port: 54325,
-  username: 'thayos_food_user',
-  password: 'thayos_food_pass',
-  database: 'thayos_food',
-  schema: 'thayos_food',
+  host: process.env.DB_HOST,
+  port: +(process.env.DB_PORT || 5432),
+  username: process.env.DB_USERNAME,
+  password: process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  schema: process.env.DB_SCHEMA,
   logging: false,
   entities: [join(__dirname, '../entities/*.entity{.ts,.js}')],
   migrations: [join(__dirname, '../migrations/postgres/*{.ts,.js}')],
   synchronize: true,
   namingStrategy: new SnakeNamingStrategy(),
   extra: {
-    options: '-c search_path=thayos_food',
+    options: `-c search_path=${process.env.DB_SCHEMA}`,
   },
 });
 
