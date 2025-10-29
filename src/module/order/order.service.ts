@@ -827,6 +827,7 @@ export class OrderService {
         'customer.remark',
         'order.type',
         'order.deliveryTime',
+        'order.deliveryTimeEnd',
         'order.address',
         'order.remark',
         'order.deliveryRemark',
