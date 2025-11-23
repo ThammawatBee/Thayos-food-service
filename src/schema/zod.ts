@@ -142,10 +142,10 @@ const CreateOrderSchema = z.object({
   }),
   startDate: z.string(),
   endDate: z.string(),
-  customerType: z.string(),
-  paymentType: z.string(),
+  customerType: z.string().nullable(),
+  paymentType: z.string().nullable(),
   total: z.number(),
-  promotion: z.string(),
+  promotion: z.string().nullable(),
   customerId: z.string(),
   deliveryOrderType: z.string(),
   individualDelivery: z.object({

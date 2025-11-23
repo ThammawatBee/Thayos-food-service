@@ -102,14 +102,14 @@ export class Order {
   @Column({ type: 'date' })
   endDate: string;
 
-  @Column()
-  customerType: string;
+  @Column({ nullable: true })
+  customerType: string | null;
 
-  @Column()
-  paymentType: string;
+  @Column({ nullable: true })
+  paymentType: string | null;
 
-  @Column()
-  promotion: string;
+  @Column({ nullable: true })
+  promotion: string | null;
 
   @ManyToOne(() => Customer, (customer) => customer.orders)
   @JoinColumn({ name: 'customer_id' })
@@ -119,7 +119,7 @@ export class Order {
   @JoinColumn({ name: 'user_id' })
   user: User;
 
-  @Column('decimal', { precision: 10, scale: 2 })
+  @Column('decimal', { precision: 10, scale: 2, default: 0 })
   total: number;
 
   @Column({ nullable: true })

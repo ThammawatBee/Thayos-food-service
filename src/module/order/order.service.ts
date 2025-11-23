@@ -457,6 +457,7 @@ export class OrderService {
     const { startDate, endDate, limit, offset } = options;
     const query = this.orderRepo.createQueryBuilder('order');
     query.leftJoin('order.customer', 'customer');
+    query.andWhere('order.paymentType IS NOT NULL');
     if (startDate && endDate) {
       query.andWhere('order.createdAt >= :start AND order.createdAt < :end', {
         start: startDate,
@@ -1337,7 +1338,6 @@ export class OrderService {
         modifyBags = [...modifyBags, bag];
       },
     );
-    console.log('modifyBags', JSON.stringify(modifyBags));
 
     modifyBags.forEach((bag) => {
       const row = worksheet.addRow({
