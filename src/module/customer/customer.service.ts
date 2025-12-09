@@ -156,7 +156,9 @@ export class CustomerService {
       .leftJoin('orderItem.order', 'order')
       .leftJoin('order.customer', 'customer')
       .where('customer.id = :customerId', { customerId })
-      .where('EXTRACT(YEAR FROM orderItem.deliveryAt) = :year', { year: +year })
+      .andWhere('EXTRACT(YEAR FROM orderItem.deliveryAt) = :year', {
+        year: +year,
+      })
       .getMany();
     return orderItems;
   }
