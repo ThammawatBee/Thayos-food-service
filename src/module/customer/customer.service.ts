@@ -88,7 +88,7 @@ export class CustomerService {
       throw new HttpException(
         {
           status: HttpStatus.BAD_REQUEST,
-          errorKey: 'CUSTOME_CODE_IS_ALREADY_EXIST',
+          errorKey: 'CUSTOMER_CODE_IS_ALREADY_EXIST',
         },
         HttpStatus.BAD_REQUEST,
       );
