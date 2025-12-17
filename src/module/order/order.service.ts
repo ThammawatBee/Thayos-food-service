@@ -1031,21 +1031,28 @@ export class OrderService {
         HttpStatus.NOT_FOUND,
       );
     }
-    await this.dataSource.transaction(async (manager) => {
-      await manager
-        .createQueryBuilder()
-        .delete()
-        .from(OrderItem)
-        .where('bag_id = :id', { id: bagId })
-        .execute();
+    try {
+      await this.dataSource.transaction(async (manager) => {
+        await manager.delete(OrderItem, { bag: { id: bagId } });
+        await manager.delete(Bag, { id: bagId });
+      });
+    } catch (err) {
+      // log full error (server-side)
+      console.error(err);
 
-      await manager
-        .createQueryBuilder()
-        .delete()
-        .from(Bag)
-        .where('id = :id', { id: bagId })
-        .execute();
-    });
+      const driver = (err as any)?.driverError;
+
+      throw new BadRequestException({
+        status: HttpStatus.BAD_REQUEST,
+        errorKey: 'DELETE_BAG',
+        message: err instanceof Error ? err.message : String(err),
+        db: {
+          code: driver?.code, // e.g. Postgres 23503 (FK violation)
+          detail: driver?.detail,
+          constraint: driver?.constraint,
+        },
+      });
+    }
     // await this.bagRepo.delete(bagId)
     if (operator) {
       this.logService.createLog({
