@@ -724,6 +724,14 @@ export class OrderService {
       .getMany();
     if (bags.length) {
       const deliveryDates = bags.map((bag) => bag.deliveryAt);
+      await this.orderItemRepo
+        .createQueryBuilder()
+        .delete()
+        .from(OrderItem)
+        .where('bag_id IN (:...ids)', {
+          ids: bags.map((bag) => bag.id),
+        })
+        .execute();
       await this.bagRepo
         .createQueryBuilder()
         .delete()
@@ -763,7 +771,7 @@ export class OrderService {
         new Brackets((qb) => {
           qb.where('order.startDate >= :start', {
             start: startDate,
-          }).orWhere('order.endDate <= :end', {
+          }).andWhere('order.endDate <= :end', {
             end: endDate,
           });
         }),
@@ -1023,12 +1031,22 @@ export class OrderService {
         HttpStatus.NOT_FOUND,
       );
     }
-    await this.bagRepo
-      .createQueryBuilder()
-      .delete()
-      .from(Bag)
-      .where('id = :id', { id: bagId })
-      .execute();
+    await this.dataSource.transaction(async (manager) => {
+      await manager
+        .createQueryBuilder()
+        .delete()
+        .from(OrderItem)
+        .where('bag_id = :id', { id: bagId })
+        .execute();
+
+      await manager
+        .createQueryBuilder()
+        .delete()
+        .from(Bag)
+        .where('id = :id', { id: bagId })
+        .execute();
+    });
+    // await this.bagRepo.delete(bagId)
     if (operator) {
       this.logService.createLog({
         userId: operator.sub,
@@ -1268,7 +1286,7 @@ export class OrderService {
     );
     response.setHeader(
       'Content-Disposition',
-      'attachment; filename=deliveries.xlsx',
+      'attachment; filename=daily-order-items.xlsx',
     );
     const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
       stream: response, // STREAM directly to response
@@ -1440,6 +1458,79 @@ export class OrderService {
 
     worksheet.commit(); // commit worksheet
 
+    await workbook.commit();
+  }
+
+  public async exportDailyOrderItems(response: Response, options: ListBag) {
+    response.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    response.setHeader(
+      'Content-Disposition',
+      'attachment; filename=deliveries.xlsx',
+    );
+    const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      stream: response, // STREAM directly to response
+      useStyles: true,
+      useSharedStrings: true,
+    });
+    const worksheet = workbook.addWorksheet('DailyOrderItems');
+    const { bags } = await this.listBag({ ...options, getAll: true }, [], []);
+    let row = 1;
+    const start = DateTime.fromISO(options.startDate);
+    const end = DateTime.fromISO(options.endDate);
+    let current = start;
+    while (current <= end) {
+      const bagsInDate = bags.filter(
+        (bag) => bag.deliveryAt === current.toISODate(),
+      );
+      if (bagsInDate.length) {
+        types.forEach((type) => {
+          const bagHasOderItemInType = bagsInDate.filter((bag) => {
+            return bag.orderItems.filter(
+              (orderItem) => orderItem.type === type.value,
+            ).length;
+          });
+          if (bagHasOderItemInType.length) {
+            worksheet.mergeCells(`A${row}:C${row}`);
+            const hrow = worksheet.getRow(row);
+            const cell = hrow.getCell(1);
+            const dt = current.setLocale('th');
+            const dayTH = dt.toFormat('cccc');
+            cell.value = `${dayTH} ที่ ${current.toFormat('dd/MM/yyyy')} ${type.text
+              }`;
+            cell.alignment = { horizontal: 'center', vertical: 'middle' };
+            // background fill
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: '92D051' },
+            };
+            hrow.height = 30;
+            hrow.commit();
+            row = row + 1;
+            bagHasOderItemInType.forEach((bag) => {
+              const orderItems = bag.orderItems.filter(
+                (orderItem) => orderItem.type === type.value,
+              );
+              orderItems.forEach((_orderItem) => {
+                const r = worksheet.addRow([
+                  bag.order.type,
+                  bag.order.customer.fullname,
+                  bag.order.remark,
+                ]);
+                r.height = 22;
+                r.commit();
+                row = row + 1;
+              });
+            });
+          }
+        });
+      }
+      current = current.plus({ days: 1 });
+    }
+    worksheet.commit(); // commit worksheet
     await workbook.commit();
   }
 }
