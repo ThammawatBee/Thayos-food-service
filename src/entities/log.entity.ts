@@ -38,10 +38,10 @@ export class Log {
   @ManyToOne(() => User)
   user: User;
 
-  @ManyToOne(() => Customer, { nullable: true })
+  @ManyToOne(() => Customer, { nullable: true, onDelete: 'CASCADE' })
   customer?: Customer;
 
-  @ManyToOne(() => Bag, { nullable: true })
+  @ManyToOne(() => Bag, { nullable: true, onDelete: 'CASCADE' })
   bag?: Bag;
 
   @Column({
