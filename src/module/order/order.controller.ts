@@ -89,6 +89,11 @@ export class OrderController {
     return this.orderService.getOrderItemSummary(query);
   }
 
+  @Get('/daily/order-items')
+  async exportDailyOrderItems(@Res() res: Response, @Query() query: ListBag) {
+    return this.orderService.exportDailyOrderItems(res, query);
+  }
+
   @Get('/bag/:id')
   async getBag(@Param('id') id: string) {
     const bag = await this.orderService.getBag(id);

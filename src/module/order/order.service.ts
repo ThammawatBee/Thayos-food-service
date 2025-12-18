@@ -1501,6 +1501,9 @@ export class OrderService {
           });
           if (bagHasOderItemInType.length) {
             worksheet.mergeCells(`A${row}:C${row}`);
+            worksheet.getColumn(1).width = 30;
+            worksheet.getColumn(2).width = 30;
+            worksheet.getColumn(3).width = 30;
             const hrow = worksheet.getRow(row);
             const cell = hrow.getCell(1);
             const dt = current.setLocale('th');
