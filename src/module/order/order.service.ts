@@ -4,6 +4,7 @@ import {
   HttpStatus,
   Injectable,
   NotFoundException,
+  OnApplicationBootstrap,
 } from '@nestjs/common';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import keyBy from 'lodash/keyBy';
@@ -75,7 +76,7 @@ type DeliveryHeader = {
 };
 
 @Injectable()
-export class OrderService {
+export class OrderService implements OnApplicationBootstrap {
   constructor(
     @InjectRepository(Order)
     private readonly orderRepo: Repository<Order>,
@@ -707,10 +708,12 @@ export class OrderService {
     payload: UpdateOrder,
     operator?: UserPayload,
   ) {
-    await this.orderRepo.save({
-      id,
-      ...payload,
-    });
+    await this.orderRepo
+      .createQueryBuilder()
+      .update(Order)
+      .set({ ...payload })
+      .where('id = :id', { id })
+      .execute();
     const query = this.orderRepo.createQueryBuilder('order');
     query.leftJoinAndSelect('order.customer', 'customer');
     query.where('order.id = :id', { id: id });
@@ -781,9 +784,9 @@ export class OrderService {
       query.andWhere(
         new Brackets((qb) => {
           qb.where('customer.customerCode ILIKE :input', {
-            input: `%${customer}%`,
+            input: `%${customer.trim()}%`,
           }).orWhere('customer.name ILIKE :input', {
-            input: `%${customer}%`,
+            input: `%${customer.trim()}%`,
           });
         }),
       );
@@ -1542,5 +1545,76 @@ export class OrderService {
     }
     worksheet.commit(); // commit worksheet
     await workbook.commit();
+  }
+
+  async onApplicationBootstrap() {
+    console.log('Startup migrated remark order');
+    await this.MigrateRemarkOrder();
+  }
+
+  private async MigrateRemarkOrder() {
+    const start = Date.now();
+    console.log(`start Migrated startAt=${new Date().toISOString()}`)
+    const query = this.orderRepo.createQueryBuilder('order');
+    query
+      .andWhere('order.remark = :remark', {
+        remark: '-',
+      })
+      .select(['order.id']);
+    const orders = await query.getMany();
+    for (const migratedOrder of orders) {
+      await this.orderRepo
+        .createQueryBuilder()
+        .update(Order)
+        .set({ remark: '' })
+        .where('id = :id', { id: migratedOrder.id })
+        .execute();
+
+      const query = this.orderRepo.createQueryBuilder('order');
+      query.leftJoinAndSelect('order.customer', 'customer');
+      query.where('order.id = :id', { id: migratedOrder.id });
+      const order = await query.getOne();
+      const bags = await this.bagRepo
+        .createQueryBuilder('bag')
+        .leftJoinAndSelect('bag.order', 'order')
+        .where('bag.deliveryAt > CURRENT_DATE')
+        .andWhere('order.id = :id', { id: migratedOrder.id })
+        .select(['bag.deliveryAt', 'bag.id', 'order'])
+        .getMany();
+      if (bags.length) {
+        const deliveryDates = bags.map((bag) => bag.deliveryAt);
+        await this.orderItemRepo
+          .createQueryBuilder()
+          .delete()
+          .from(OrderItem)
+          .where('bag_id IN (:...ids)', {
+            ids: bags.map((bag) => bag.id),
+          })
+          .execute();
+        await this.bagRepo
+          .createQueryBuilder()
+          .delete()
+          .from(Bag)
+          .where('id IN (:...ids)', {
+            ids: bags.map((bag) => bag.id),
+          })
+          .execute();
+        const noRemarkType = isNil(order.remark || null);
+        const newBags = await this.createBags(
+          deliveryDates,
+          order,
+          noRemarkType,
+        );
+        const newOrderItems = this.buildOrderItem(
+          order,
+          deliveryDates,
+          newBags,
+        );
+        for (const batch of chunk(newOrderItems, 200)) {
+          await this.orderItemRepo.save(batch);
+        }
+      }
+    }
+    console.log(`Migrated durationMs=${Date.now() - start}`);
   }
 }
