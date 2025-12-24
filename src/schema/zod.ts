@@ -177,6 +177,8 @@ const ListBagSchema = z.object({
   endDate: z.string().optional(),
   type: z.string().optional(),
   customer: z.string().optional(),
+  remark: z.string().optional(),
+  orderType: z.string().optional(),
   getAll: z
     .string()
     .optional()

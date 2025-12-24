@@ -392,6 +392,8 @@ export class OrderService implements OnApplicationBootstrap {
       type,
       customer,
       getAll = false,
+      remark,
+      orderType,
     } = options;
     const query = this.bagRepo.createQueryBuilder('bag');
     query.leftJoin('bag.order', 'order');
@@ -405,6 +407,16 @@ export class OrderService implements OnApplicationBootstrap {
       );
     } else {
       query.leftJoinAndSelect('bag.orderItems', 'orderItems');
+    }
+    if (remark && remark !== 'ALL') {
+      if (remark === 'Remark') {
+        query.andWhere('bag.noRemarkType IS FALSE');
+      } else {
+        query.andWhere('bag.noRemarkType IS TRUE');
+      }
+    }
+    if (orderType && orderType !== 'ALL') {
+      query.andWhere('order.type = :type', { type: orderType });
     }
     if (qrCodes?.length) {
       query.where(`bag.qrCode IN (:...qrCodes)`, { qrCodes });
@@ -1548,7 +1560,7 @@ export class OrderService implements OnApplicationBootstrap {
 
   private async MigrateRemarkOrder() {
     const start = Date.now();
-    console.log(`start Migrated startAt=${new Date().toISOString()}`)
+    console.log(`start Migrated startAt=${new Date().toISOString()}`);
     const query = this.orderRepo.createQueryBuilder('order');
     query
       .andWhere('order.remark = :remark', {
