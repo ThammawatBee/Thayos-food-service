@@ -22,7 +22,7 @@ export class LogService {
   constructor(
     @InjectRepository(Log)
     private readonly logRepo: Repository<Log>,
-  ) {}
+  ) { }
 
   async createLog(payload: LogInput) {
     const log = this.logRepo.create({
@@ -31,24 +31,24 @@ export class LogService {
       status: payload.status,
       ...(payload?.customerId
         ? {
-            customer: {
-              id: payload.customerId,
-            },
-          }
+          customer: {
+            id: payload.customerId,
+          },
+        }
         : {}),
       ...(payload?.userId
         ? {
-            user: {
-              id: payload.userId,
-            },
-          }
+          user: {
+            id: payload.userId,
+          },
+        }
         : {}),
       ...(payload?.bagId
         ? {
-            bag: {
-              id: payload.bagId,
-            },
-          }
+          bag: {
+            id: payload.bagId,
+          },
+        }
         : {}),
     });
     const createdLog = await this.logRepo.save(log);
@@ -67,9 +67,9 @@ export class LogService {
         end: DateTime.fromFormat(endDate, 'yyyy-MM-dd').toJSDate(),
       });
     }
-    if (type && type !== 'ALL') {
-      query.andWhere('log.type =:type', { type });
-    }
+    // if (type && type !== 'ALL') {
+    //   query.andWhere('log.type =:type', { type });
+    // }
     const count = await query.getCount();
     query.orderBy('log.createdAt', 'DESC');
     query.limit(+limit || 20);

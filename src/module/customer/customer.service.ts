@@ -66,7 +66,7 @@ export class CustomerService {
         new Brackets((qb) => {
           qb.where('customer.customerCode ILIKE :input', {
             input: `%${customerCode}%`,
-          }).orWhere('customer.name ILIKE :input', {
+          }).orWhere('customer.fullname ILIKE :input', {
             input: `%${customerCode}%`,
           });
         }),

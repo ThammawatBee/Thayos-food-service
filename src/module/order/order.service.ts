@@ -59,6 +59,7 @@ import {
   modifyGroupBag,
 } from 'src/utils/bag';
 import { v4 as uuidv4 } from 'uuid';
+import { start } from 'repl';
 
 const types = [
   { text: 'มื้อเช้า', value: 'breakfast' },
@@ -419,7 +420,7 @@ export class OrderService implements OnApplicationBootstrap {
           new Brackets((qb) => {
             qb.where('customer.customerCode ILIKE :input', {
               input: `%${customer}%`,
-            }).orWhere('customer.name ILIKE :input', {
+            }).orWhere('customer.fullname ILIKE :input', {
               input: `%${customer}%`,
             });
           }),
@@ -523,53 +524,46 @@ export class OrderService implements OnApplicationBootstrap {
       { header: `Basket`, key: 'basket', width: 20 },
     ];
 
-    const batchSize = 20;
-    let offset = 0;
     const qrCodes = await this.listBagQrCode(options);
     // const RED_FILL = {
     //   type: 'pattern',
     //   pattern: 'solid',
     //   fgColor: { argb: 'FFFFCDD2' }, // light red
     // } as const;
-    while (true) {
-      const { bags } = await this.listBag(
-        {
-          ...options,
-          offset: `${offset}`,
-          limit: `${batchSize}`,
-        },
-        qrCodes,
-      );
-      if (bags.length === 0) break;
-      values(groupBy(bags, 'qrCode')).forEach((bags) => {
-        const bag = modifyGroupBag(bags);
-        const row = worksheet.addRow({
-          id: bag.qrCode,
-          deliveryAt: bag.deliveryAt,
-          customerCode: bag.customerCode,
-          customerName: bag.customerName,
-          address: bag.address,
-          menu: renderMenu(bag.orderItems),
-          basket: bag.basket || '',
-          remark: bag?.order?.remark,
-          deliveryRemark: bag?.order?.deliveryRemark,
-          deliveryTime: bag.order.deliveryTime
-            ? DateTime.fromFormat(bag.order.deliveryTime, 'hh:mm:ss').toFormat(
-              'hh:mm',
-            )
-            : '',
-          deliveryTimeEnd: bag.order.deliveryTimeEnd
-            ? DateTime.fromFormat(
-              bag.order.deliveryTimeEnd,
-              'hh:mm:ss',
-            ).toFormat('hh:mm')
-            : '',
-        });
-        // row.getCell(1).fill = RED_FILL;
-        row.commit(); // important in streaming mode
+    const { bags } = await this.listBag(
+      {
+        ...options,
+        getAll: true,
+      },
+      qrCodes,
+    );
+
+    values(groupBy(bags, 'qrCode')).forEach((bags) => {
+      const bag = modifyGroupBag(bags);
+      const row = worksheet.addRow({
+        id: bag.qrCode,
+        deliveryAt: bag.deliveryAt,
+        customerCode: bag.customerCode,
+        customerName: bag.customerName,
+        address: bag.address,
+        menu: renderMenu(bag.orderItems),
+        basket: bag.basket || '',
+        remark: bag?.order?.remark,
+        deliveryRemark: bag?.order?.deliveryRemark,
+        deliveryTime: bag.order.deliveryTime
+          ? DateTime.fromFormat(bag.order.deliveryTime, 'hh:mm:ss').toFormat(
+            'hh:mm',
+          )
+          : '',
+        deliveryTimeEnd: bag.order.deliveryTimeEnd
+          ? DateTime.fromFormat(bag.order.deliveryTimeEnd, 'hh:mm:ss').toFormat(
+            'hh:mm',
+          )
+          : '',
       });
-      offset += batchSize;
-    }
+      // row.getCell(1).fill = RED_FILL;
+      row.commit(); // important in streaming mode
+    });
     worksheet.commit(); // commit worksheet
 
     await workbook.commit();
@@ -772,10 +766,10 @@ export class OrderService implements OnApplicationBootstrap {
     if (startDate && endDate) {
       query.andWhere(
         new Brackets((qb) => {
-          qb.where('order.startDate >= :start', {
-            start: startDate,
-          }).andWhere('order.endDate <= :end', {
+          qb.where('order.startDate <= :end', {
             end: endDate,
+          }).andWhere('order.endDate >= :start', {
+            start: startDate,
           });
         }),
       );
@@ -785,7 +779,7 @@ export class OrderService implements OnApplicationBootstrap {
         new Brackets((qb) => {
           qb.where('customer.customerCode ILIKE :input', {
             input: `%${customer.trim()}%`,
-          }).orWhere('customer.name ILIKE :input', {
+          }).orWhere('customer.fullname ILIKE :input', {
             input: `%${customer.trim()}%`,
           });
         }),
@@ -878,7 +872,7 @@ export class OrderService implements OnApplicationBootstrap {
         new Brackets((qb) => {
           qb.where('customer.customerCode ILIKE :input', {
             input: `%${customer}%`,
-          }).orWhere('customer.name ILIKE :input', {
+          }).orWhere('customer.fullname ILIKE :input', {
             input: `%${customer}%`,
           });
         }),
@@ -1548,8 +1542,8 @@ export class OrderService implements OnApplicationBootstrap {
   }
 
   async onApplicationBootstrap() {
-    console.log('Startup migrated remark order');
-    await this.MigrateRemarkOrder();
+    console.log('Startup Service');
+    // await this.MigrateRemarkOrder();
   }
 
   private async MigrateRemarkOrder() {
