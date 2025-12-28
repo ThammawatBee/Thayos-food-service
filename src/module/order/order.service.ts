@@ -859,7 +859,7 @@ export class OrderService implements OnApplicationBootstrap {
   }
 
   public async listBagQrCode(options: ListBag) {
-    const { startDate, endDate, type, customer } = options;
+    const { startDate, endDate, type, customer, remark, orderType } = options;
     const query = this.bagRepo.createQueryBuilder('bag');
     query.leftJoin('bag.order', 'order');
     query.leftJoin('order.customer', 'customer');
@@ -872,6 +872,16 @@ export class OrderService implements OnApplicationBootstrap {
       );
     } else {
       query.leftJoinAndSelect('bag.orderItems', 'orderItems');
+    }
+    if (remark && remark !== 'ALL') {
+      if (remark === 'Remark') {
+        query.andWhere('bag.noRemarkType IS FALSE');
+      } else {
+        query.andWhere('bag.noRemarkType IS TRUE');
+      }
+    }
+    if (orderType && orderType !== 'ALL') {
+      query.andWhere('order.type = :type', { type: orderType });
     }
     if (startDate && endDate) {
       query.andWhere('bag.deliveryAt >= :start AND bag.deliveryAt <= :end', {
