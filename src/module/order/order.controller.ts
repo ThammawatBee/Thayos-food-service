@@ -19,10 +19,14 @@ import { Response } from 'express';
 import { join } from 'path';
 import { diskStorage } from 'multer';
 import {
+  CalculateDate,
   CreateOrder,
   ListBag,
   ListOderPayment,
   ListOrder,
+  AppendDuplicateOrderItem,
+  ResetDuplicateOrderItem,
+  ResetOrderItemInBagStatus,
   UpdateBag,
   UpdateBagData,
   UpdateOrder,
@@ -36,7 +40,7 @@ import { UserPayload } from 'src/types/user-payload.interface';
 @UseGuards(JwtAuthGuard)
 @Controller('orders')
 export class OrderController {
-  constructor(private readonly orderService: OrderService) { }
+  constructor(private readonly orderService: OrderService) {}
 
   @Post(':id/upload-slip')
   @UseInterceptors(
@@ -128,6 +132,12 @@ export class OrderController {
     return { ...result };
   }
 
+  @Get('/bags/group-by-qrcode')
+  async listGroupedBagsByQrCode(@Query() query: ListBag) {
+    const result = await this.orderService.listGroupedBagByQrCode(query);
+    return { ...result };
+  }
+
   @Post('/verify-order-item')
   async verifyOrderItem(
     @Body() body: VerifyOrderItem,
@@ -137,10 +147,50 @@ export class OrderController {
     return { status: 'verify orderItem success' };
   }
 
+  @Post('/duplicate-order-item')
+  async appendDuplicateOrderItem(
+    @Body() body: AppendDuplicateOrderItem,
+    @User() operator: UserPayload,
+  ) {
+    await this.orderService.appendDuplicateOrderItem(body, operator);
+    return { status: 'append duplicate orderItem success' };
+  }
+
+  @Patch('/duplicate-order-item/reset')
+  async resetDuplicateOrderItem(
+    @Body() body: ResetDuplicateOrderItem,
+    @User() operator: UserPayload,
+  ) {
+    await this.orderService.resetDuplicateOrderItemsByQrCode(
+      body.bagQrCode,
+      operator,
+    );
+    return { status: 'reset duplicate orderItem success' };
+  }
+
+  @Patch('/order-items/in-bag-status/reset')
+  async resetOrderItemInBagStatus(
+    @Body() body: ResetOrderItemInBagStatus,
+    @User() operator: UserPayload,
+  ) {
+    await this.orderService.resetOrderItemsInBagStatusByQrCode(
+      body.bagQrCode,
+      operator,
+    );
+    return { status: 'reset orderItem inBagStatus success' };
+  }
+
   @Post('/verify-bag')
   async verifyBag(@Body() body: VerifyBag, @User() operator: UserPayload) {
     await this.orderService.verifyBag(body, operator);
     return { status: 'verify bag success' };
+  }
+
+  @Post('/calculate-delivery-date')
+  async calculateDeliveryDate(@Body() body: CalculateDate) {
+    const calculateDeliveryDates =
+      await this.orderService.calculateDeliveryDate(body);
+    return { calculateDeliveryDates };
   }
 
   @Patch('/bags')

@@ -131,6 +131,12 @@ export class Order {
   @Column({ type: 'jsonb', nullable: true })
   deliveryOn: DeliveryOn;
 
+  @Column({
+    type: 'jsonb',
+    nullable: true,
+  })
+  skipDates?: string[];
+
   @Column({ type: 'jsonb', nullable: true })
   individualDelivery: IndividualDelivery;
 

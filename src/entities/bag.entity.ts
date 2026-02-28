@@ -10,6 +10,13 @@ import {
 import { OrderItem } from './orderItem.entity';
 import { Order } from './order.entity';
 
+export type DuplicateOrderItem = {
+  orderItemId: string;
+  type: string;
+  scannedAt: string;
+  scannedBy?: string;
+};
+
 @Entity('bags')
 export class Bag {
   @Column({ type: 'uuid', primary: true, default: () => 'gen_random_uuid()' })
@@ -39,6 +46,9 @@ export class Bag {
 
   @Column({ type: 'uuid' })
   qrCode: string;
+
+  @Column({ type: 'jsonb', default: () => "'[]'" })
+  duplicateOrderItems: DuplicateOrderItem[];
 
   @CreateDateColumn({ name: 'created_at', type: 'timestamptz' })
   createdAt: Date;

@@ -11,16 +11,18 @@ import keyBy from 'lodash/keyBy';
 import isNil from 'lodash/isNil';
 import { DateTime } from 'luxon';
 import * as ExcelJS from 'exceljs';
-import { Bag } from 'src/entities/bag.entity';
+import { Bag, DuplicateOrderItem } from 'src/entities/bag.entity';
 import { Customer } from 'src/entities/customer.entity';
 import { Holiday } from 'src/entities/holiday.entity';
 import { DeliveryOn, Order } from 'src/entities/order.entity';
 import { OrderItem } from 'src/entities/orderItem.entity';
 import {
+  CalculateDate,
   CreateOrder,
   ListBag,
   ListOderPayment,
   ListOrder,
+  AppendDuplicateOrderItem,
   UpdateBag,
   UpdateBagData,
   UpdateOrder,
@@ -47,6 +49,7 @@ import {
   keys,
   pickBy,
   sortBy,
+  uniq,
   values,
 } from 'lodash';
 import { LogService } from '../log/log.service';
@@ -70,10 +73,24 @@ const types = [
   { text: 'ของว่างเย็น', value: 'dinnerSnack' },
 ];
 
+const dailyOrderTypes = [
+  { text: 'มื้อเช้า', value: 'breakfast' },
+  { text: 'ของว่างเช้า', value: 'breakfastSnack' },
+  { text: 'มื้อกลางวัน', value: 'lunch' },
+];
+
 type DeliveryHeader = {
   header: string;
   key: string;
   width: number;
+};
+
+type SummaryOrderItem = {
+  date: string;
+  breakfast: string;
+  lunch: string;
+  dinner: string;
+  snack: string;
 };
 
 @Injectable()
@@ -146,8 +163,9 @@ export class OrderService implements OnApplicationBootstrap {
     );
 
     const calculateDeliveryDates = await this.calculateDateWithHolidays(
-      order,
+      { orderEndDate: order.endDate, orderStartDate: order.startDate },
       deliveryDates,
+      order.skipDates || [],
     );
 
     const bags = await this.createBags(
@@ -201,11 +219,12 @@ export class OrderService implements OnApplicationBootstrap {
           orderItem.order = order;
           orderItem.type = mealType;
           orderItem.bag = bagKeyByDeliveryAt[date];
-          orderItem.qrcode = bagKeyByDeliveryAt[date].noRemarkType
-            ? NoRemarkQRFormat[
-            `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
-            ]
-            : null;
+          orderItem.qrcode =
+            bagKeyByDeliveryAt[date].noRemarkType || mealType.includes('Snack')
+              ? NoRemarkQRFormat[
+              `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
+              ]
+              : null;
           result.push(orderItem);
         }
       });
@@ -223,11 +242,12 @@ export class OrderService implements OnApplicationBootstrap {
           orderItem.order = order;
           orderItem.type = mealType;
           orderItem.bag = bagKeyByDeliveryAt[date];
-          orderItem.qrcode = bagKeyByDeliveryAt[date].noRemarkType
-            ? NoRemarkQRFormat[
-            `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
-            ]
-            : null;
+          orderItem.qrcode =
+            bagKeyByDeliveryAt[date].noRemarkType || mealType.includes('Snack')
+              ? NoRemarkQRFormat[
+              `${DateTime.fromISO(date).toFormat('cccc')}-${mealType}`
+              ]
+              : null;
           result.push(orderItem);
         }
       });
@@ -315,18 +335,27 @@ export class OrderService implements OnApplicationBootstrap {
     return result;
   }
 
-  async calculateDateWithHolidays(order: Order, deliveryDates: string[]) {
-    const endDate = DateTime.fromISO(order.endDate)
+  async calculateDateWithHolidays(
+    {
+      orderStartDate,
+      orderEndDate,
+    }: { orderStartDate: string; orderEndDate: string },
+    deliveryDates: string[],
+    skipDate?: string[],
+  ) {
+    const endDate = DateTime.fromISO(orderEndDate)
       .plus({ days: 90 })
       .toISODate();
     const holidays = await this.holidayRepo
       .createQueryBuilder('h')
       .where('h.date BETWEEN :start AND :end', {
-        start: order.startDate,
+        start: orderStartDate,
         end: endDate,
       })
       .getMany();
-    const holidaySet = new Set(holidays.map((h) => h.date));
+    const holidaySet = new Set(
+      uniq([...holidays.map((h) => h.date), ...skipDate]),
+    );
     const deliveryDateSet = new Set(deliveryDates);
 
     const adjustedDates = deliveryDates.map((date) => {
@@ -421,9 +450,13 @@ export class OrderService implements OnApplicationBootstrap {
     if (qrCodes?.length) {
       query.where(`bag.qrCode IN (:...qrCodes)`, { qrCodes });
     } else {
-      if (startDate && endDate) {
-        query.andWhere('bag.deliveryAt >= :start AND bag.deliveryAt <= :end', {
+      if (startDate) {
+        query.andWhere('bag.deliveryAt >= :start', {
           start: startDate,
+        });
+      }
+      if (endDate) {
+        query.andWhere('bag.deliveryAt <= :end', {
           end: endDate,
         });
       }
@@ -453,6 +486,8 @@ export class OrderService implements OnApplicationBootstrap {
       'customer.fullname',
       'customer.customerCode',
       'customer.address',
+      'customer.pinAddress',
+      'customer.mobileNumber',
       'customer.remark',
       'order.id',
       'order.type',
@@ -527,7 +562,9 @@ export class OrderService implements OnApplicationBootstrap {
       { header: 'วันที่', key: 'deliveryAt', width: 20 },
       { header: 'รหัสลูกค้า', key: 'customerCode', width: 20 },
       { header: 'ชื่อลูกค้า', key: 'customerName', width: 20 },
+      { header: 'เบอร์โทร', key: 'customerPhone', width: 20 },
       { header: 'ที่อยู่', key: 'address', width: 20 },
+      { header: 'Pin address', key: 'pinAddress', width: 20 },
       { header: `Remark`, key: 'remark', width: 20 },
       { header: `Delivery Remark`, key: 'deliveryRemark', width: 20 },
       { header: 'deliveryTime', key: 'deliveryTime', width: 20 },
@@ -549,7 +586,7 @@ export class OrderService implements OnApplicationBootstrap {
       },
       qrCodes,
     );
-
+    console.log("bags", JSON.stringify(bags))
     values(groupBy(bags, 'qrCode')).forEach((bags) => {
       const bag = modifyGroupBag(bags);
       const row = worksheet.addRow({
@@ -558,6 +595,8 @@ export class OrderService implements OnApplicationBootstrap {
         customerCode: bag.customerCode,
         customerName: bag.customerName,
         address: bag.address,
+        pinAddress: bag.order.customer.pinAddress,
+        customerPhone: bag.order.customer.mobileNumber,
         menu: renderMenu(bag.orderItems),
         basket: bag.basket || '',
         remark: bag?.order?.remark,
@@ -659,12 +698,13 @@ export class OrderService implements OnApplicationBootstrap {
             orderItem.order = bag.order;
             orderItem.type = item.type;
             orderItem.bag = bag;
-            orderItem.qrcode = bag.noRemarkType
-              ? NoRemarkQRFormat[
-              `${DateTime.fromISO(bag.deliveryAt).toFormat('cccc')}-${item.type
-              }`
-              ]
-              : null;
+            orderItem.qrcode =
+              bag.noRemarkType || item.type.includes('Snack')
+                ? NoRemarkQRFormat[
+                `${DateTime.fromISO(bag.deliveryAt).toFormat('cccc')}-${item.type
+                }`
+                ]
+                : null;
             newOrderItems.push(orderItem);
           }
         }
@@ -883,9 +923,13 @@ export class OrderService implements OnApplicationBootstrap {
     if (orderType && orderType !== 'ALL') {
       query.andWhere('order.type = :type', { type: orderType });
     }
-    if (startDate && endDate) {
-      query.andWhere('bag.deliveryAt >= :start AND bag.deliveryAt <= :end', {
+    if (startDate) {
+      query.andWhere('bag.deliveryAt >= :start', {
         start: startDate,
+      });
+    }
+    if (endDate) {
+      query.andWhere('bag.deliveryAt <= :end', {
         end: endDate,
       });
     }
@@ -920,6 +964,34 @@ export class OrderService implements OnApplicationBootstrap {
       modifyBags = [...modifyBags, bag];
     });
     return { bags: modifyBags };
+  }
+
+  public async listGroupedBagByQrCode(options: ListBag) {
+    const { limit, offset, getAll = false } = options;
+    const qrCodes = uniq(await this.listBagQrCode(options));
+    const count = qrCodes.length;
+    const sliceFrom = +offset || 0;
+    const sliceTo = sliceFrom + (+limit || 20);
+    const selectedQrCodes = getAll
+      ? qrCodes
+      : qrCodes.slice(sliceFrom, sliceTo);
+
+    if (!selectedQrCodes.length) {
+      return { bags: [], count };
+    }
+
+    const { bags } = await this.listBag(
+      {
+        ...options,
+        getAll: true,
+      },
+      selectedQrCodes,
+    );
+    const groupedBags = values(groupBy(bags, 'qrCode')).map((bagList) =>
+      modifyGroupBag(bagList),
+    );
+
+    return { bags: groupedBags, count };
   }
 
   public async verifyOrderItem(
@@ -962,12 +1034,44 @@ export class OrderService implements OnApplicationBootstrap {
       }
       throw new NotFoundException('Not found Box in Bag');
     } else {
+      if (orderItem.inBagStatus) {
+        await this.appendDuplicateOrderItemData(orderItem.bag.id, {
+          orderItemId: orderItem.id,
+          type: orderItem.type,
+          scannedAt: DateTime.now().toISO(),
+          ...(operator?.sub ? { scannedBy: operator.sub } : {}),
+        });
+        const verifiedOrderItems = await this.getVerifiedOrderItemsInBag(
+          payload.bagId,
+        );
+        if (operator) {
+          await this.logService.createLog({
+            customerId: bags[0].order.customer?.id,
+            userId: operator.sub,
+            type: LogType.CHECK_BOX,
+            detail: `Verify Box duplicate at Bag delivery at ${bags[0].deliveryAt
+              } ${displayMenu(orderItem.type)} | In bag: ${verifiedOrderItems}`,
+            status: LogStatus.FAIL,
+            bagId: bags[0].id,
+          });
+        }
+        throw new BadRequestException({
+          status: HttpStatus.BAD_REQUEST,
+          errorKey: 'DUPlICATE_ORDER_ITEM_IN_BAG',
+          message: 'Duplicate order item in bag',
+        });
+      }
+
       await this.dataSource
         .createQueryBuilder()
         .update(OrderItem)
         .set({ inBagStatus: true })
         .where('id = :orderItemId', { orderItemId: orderItem.id })
         .execute();
+
+      const verifiedOrderItems = await this.getVerifiedOrderItemsInBag(
+        payload.bagId,
+      );
       if (operator) {
         try {
           await this.logService.createLog({
@@ -975,7 +1079,7 @@ export class OrderService implements OnApplicationBootstrap {
             userId: operator.sub,
             type: LogType.CHECK_BOX,
             detail: `Verify Box success at Bag delivery at ${bags[0].deliveryAt
-              } ${displayMenu(orderItem.type)}`,
+              } ${displayMenu(orderItem.type)} | In bag: ${verifiedOrderItems}`,
             status: LogStatus.SUCCESS,
             bagId: bags[0].id,
           });
@@ -985,6 +1089,146 @@ export class OrderService implements OnApplicationBootstrap {
       }
     }
     return;
+  }
+
+  private async getVerifiedOrderItemsInBag(bagQrCode: string) {
+    const verifiedOrderItems = await this.orderItemRepo
+      .createQueryBuilder('orderItem')
+      .leftJoin('orderItem.bag', 'bag')
+      .where('bag.qrCode = :bagQrCode', { bagQrCode })
+      .andWhere('orderItem.inBagStatus = :inBagStatus', { inBagStatus: true })
+      .select(['orderItem.id', 'orderItem.type'])
+      .getMany();
+
+    if (!verifiedOrderItems.length) {
+      return 'none';
+    }
+
+    return sortBy(verifiedOrderItems, ['type', 'id'])
+      .map((item) => `${displayMenu(item.type)}(${item.id})`)
+      .join(', ');
+  }
+
+  public async appendDuplicateOrderItem(
+    payload: AppendDuplicateOrderItem,
+    operator?: UserPayload,
+  ) {
+    const bag = await this.bagRepo.findOne({
+      where: { id: payload.bagId },
+      select: ['id'],
+    });
+    if (!bag) {
+      throw new NotFoundException('Bag not found');
+    }
+
+    const orderItem = await this.orderItemRepo
+      .createQueryBuilder('orderItem')
+      .leftJoin('orderItem.bag', 'bag')
+      .where('orderItem.id = :orderItemId', {
+        orderItemId: payload.orderItemId,
+      })
+      .andWhere('bag.id = :bagId', { bagId: payload.bagId })
+      .select(['orderItem.id', 'orderItem.type'])
+      .getOne();
+
+    if (!orderItem) {
+      throw new NotFoundException('Order item not found in bag');
+    }
+
+    await this.appendDuplicateOrderItemData(payload.bagId, {
+      orderItemId: orderItem.id,
+      type: orderItem.type,
+      scannedAt: payload.scannedAt || DateTime.now().toISO(),
+      ...(operator?.sub ? { scannedBy: operator.sub } : {}),
+    });
+  }
+
+  public async resetDuplicateOrderItemsByQrCode(
+    bagQrCode: string,
+    operator?: UserPayload,
+  ) {
+    const bags = await this.bagRepo.find({
+      where: { qrCode: bagQrCode },
+      relations: ['order', 'order.customer'],
+    });
+    if (!bags.length) {
+      throw new NotFoundException('Bag not found');
+    }
+
+    await this.bagRepo
+      .createQueryBuilder()
+      .update(Bag)
+      .set({ duplicateOrderItems: [] })
+      .where('qrCode = :bagQrCode', { bagQrCode })
+      .execute();
+
+    await this.dataSource
+      .createQueryBuilder()
+      .update(OrderItem)
+      .set({ inBagStatus: false })
+      .where('bag_id IN(:...bagIds)', { bagIds: bags.map((bag) => bag.id) })
+      .execute();
+
+    if (operator) {
+      await this.logService.createLog({
+        customerId: bags[0].order.customer?.id,
+        userId: operator.sub,
+        type: LogType.CHECK_BOX,
+        detail: `Reset duplicate order item at Bag delivery at ${bags[0].deliveryAt}`,
+        status: LogStatus.SUCCESS,
+        bagId: bags[0].id,
+      });
+    }
+  }
+
+  public async resetOrderItemsInBagStatusByQrCode(
+    bagQrCode: string,
+    operator?: UserPayload,
+  ) {
+    const bags = await this.bagRepo.find({
+      where: { qrCode: bagQrCode },
+      relations: ['order', 'order.customer'],
+    });
+    if (!bags.length) {
+      throw new NotFoundException('Bag not found');
+    }
+
+    await this.dataSource
+      .createQueryBuilder()
+      .update(OrderItem)
+      .set({ inBagStatus: false })
+      .where('bag_id IN(:...bagIds)', { bagIds: bags.map((bag) => bag.id) })
+      .execute();
+
+    if (operator) {
+      await this.logService.createLog({
+        customerId: bags[0].order.customer?.id,
+        userId: operator.sub,
+        type: LogType.CHECK_BOX,
+        detail: `Reset inBagStatus at Bag delivery at ${bags[0].deliveryAt}`,
+        status: LogStatus.SUCCESS,
+        bagId: bags[0].id,
+      });
+    }
+  }
+
+  private async appendDuplicateOrderItemData(
+    bagId: string,
+    duplicateOrderItem: DuplicateOrderItem,
+  ) {
+    const bag = await this.bagRepo.findOne({
+      where: { id: bagId },
+      select: ['id', 'duplicateOrderItems'],
+    });
+    if (!bag) return;
+    const duplicateOrderItems = [
+      ...(bag.duplicateOrderItems || []),
+      duplicateOrderItem,
+    ];
+    await this.bagRepo.save({
+      id: bag.id,
+      duplicateOrderItems,
+    });
   }
 
   public async verifyBag(payload: VerifyBag, operator?: UserPayload) {
@@ -1147,18 +1391,72 @@ export class OrderService implements OnApplicationBootstrap {
   public async getOrderItemSummary(options: ListBag) {
     const qrCodes = await this.listBagQrCode(options);
     const { bags } = await this.listBag({ ...options, getAll: true }, qrCodes);
-    let orderItems: OrderItem[] = [];
-    bags.forEach((bag) => {
-      orderItems = [...orderItems, ...bag.orderItems];
-    });
-    const summary = types.map((type) => {
-      return {
-        ...type,
-        count: orderItems.filter((orderItem) => orderItem.type === type.value)
-          .length,
+    let summaryOrderItems: SummaryOrderItem[] = [];
+    const start = DateTime.fromISO(options.startDate);
+    const end = DateTime.fromISO(options.endDate);
+    let current = start;
+    while (current <= end) {
+      const bagsInDate = bags.filter(
+        (bag) => bag.deliveryAt === current.toISODate(),
+      );
+      const dietBag = bagsInDate.filter((bag) => bag.order.type === 'DIET');
+      const healthyBag = bagsInDate.filter(
+        (bag) => bag.order.type === 'HEALTHY',
+      );
+      const allOrderItems: OrderItem[] = flatMap(bagsInDate, 'orderItems');
+      const allOrderItemsHealthy: OrderItem[] = flatMap(
+        healthyBag,
+        'orderItems',
+      );
+
+      const allOrderItemsDiet: OrderItem[] = flatMap(dietBag, 'orderItems');
+
+      const countOrderItemsByType = (type: string) => {
+        return allOrderItems.filter((orderItem) => {
+          return orderItem.type === type;
+        }).length;
       };
-    });
-    return summary;
+
+      const countOrderHealthyItemsByType = (type: string) => {
+        return allOrderItemsHealthy.filter((orderItem) => {
+          return orderItem.type === type;
+        }).length;
+      };
+
+      const countOrderDietItemsByType = (type: string) => {
+        return allOrderItemsDiet.filter((orderItem) => {
+          return orderItem.type === type;
+        }).length;
+      };
+      summaryOrderItems = [
+        ...summaryOrderItems,
+        {
+          date: current.toFormat('dd/MM/yyyy'),
+          breakfast: `T${countOrderItemsByType(
+            'breakfast',
+          )},H${countOrderHealthyItemsByType(
+            'breakfast',
+          )},D${countOrderDietItemsByType('breakfast')}`,
+          lunch: `T${countOrderItemsByType(
+            'lunch',
+          )},H${countOrderHealthyItemsByType(
+            'lunch',
+          )},D${countOrderDietItemsByType('lunch')}`,
+          dinner: `T${countOrderItemsByType(
+            'dinner',
+          )},H${countOrderHealthyItemsByType(
+            'dinner',
+          )},D${countOrderDietItemsByType('dinner')}`,
+          snack: `${countOrderItemsByType(
+            'breakfastSnack',
+          )},${countOrderItemsByType('lunchSnack')},${countOrderItemsByType(
+            'dinnerSnack',
+          )}`,
+        },
+      ];
+      current = current.plus({ days: 1 });
+    }
+    return summaryOrderItems;
   }
 
   private genDeliveryColumnHeader(startDate: string, endDate: string) {
@@ -1212,35 +1510,69 @@ export class OrderService implements OnApplicationBootstrap {
     return { dates, headerColumns };
   }
 
-  private generateDeliverySummaryRow(bags: Bag[], dates: string[]) {
+  private generateDeliverySummaryRow(
+    bags: Bag[],
+    dates: string[],
+    summaryType: 'REMARK' | 'NO_REMARK' | 'TOTAL',
+  ) {
     let rowData = {};
+    console.log('summaryType', summaryType);
     dates.forEach((date) => {
-      const bagsInDay = bags.filter((bag) => bag.deliveryAt === date);
-      const bagsInDayTypeHealthy = bags.filter(
-        (bag) => bag.deliveryAt === date && bag.order.type === 'HEALTHY',
-      );
+      console.log('date', date);
+      // const allBag = bags.filter((bag) => {
+      //   return bag.deliveryAt === date;
+      // });
+
+      const bagsInDay = bags.filter((bag) => {
+        if (summaryType === 'NO_REMARK') {
+          return bag.deliveryAt === date && bag.noRemarkType;
+        }
+        if (summaryType === 'REMARK') {
+          return bag.deliveryAt === date && !bag.noRemarkType;
+        }
+        return bag.deliveryAt === date;
+      });
+      // console.log('bagsInDay', JSON.stringify(bagsInDay));
+      const bagsInDayTypeHealthy = bagsInDay.filter((bag) => {
+        return bag.order.type === 'HEALTHY' && bag.deliveryAt === date;
+      });
+      // console.log('bagsInDayTypeHealthy', bagsInDayTypeHealthy);
+      const bagsInDayTypeDiet = bagsInDay.filter((bag) => {
+        return bag.order.type === 'DIET' && bag.deliveryAt === date;
+      });
+      // console.log('bagsInDayTypeDiet', bagsInDayTypeDiet);
       const allOrderItems: OrderItem[] = flatMap(bagsInDay, 'orderItems');
       const allOrderItemsHealthy: OrderItem[] = flatMap(
         bagsInDayTypeHealthy,
         'orderItems',
       );
 
+      const allOrderItemsDiet: OrderItem[] = flatMap(
+        bagsInDayTypeDiet,
+        'orderItems',
+      );
+      console.log("allOrderItems", JSON.stringify(allOrderItems))
       const countOrderItemsByType = (type: string) => {
-        return allOrderItems.filter((orderItem) => orderItem.type === type)
-          .length;
+        return allOrderItems.filter((orderItem) => {
+          return orderItem.type === type;
+        }).length;
       };
       const countOrderItemsHealthy = (type: string) => {
         return allOrderItemsHealthy.filter(
           (orderItem) => orderItem.type === type,
         ).length;
       };
+      const countOrderItemsDiet = (type: string) => {
+        return allOrderItemsDiet.filter((orderItem) => orderItem.type === type)
+          .length;
+      };
       rowData = {
         ...rowData,
-        [`${date}-breakfast`]: countOrderItemsByType('breakfast'),
+        [`${date}-breakfast`]: countOrderItemsDiet('breakfast'),
         [`${date}-breakfastSnack`]: countOrderItemsByType('breakfastSnack'),
-        [`${date}-lunch`]: countOrderItemsByType('lunch'),
+        [`${date}-lunch`]: countOrderItemsDiet('lunch'),
         [`${date}-lunchSnack`]: countOrderItemsByType('lunchSnack'),
-        [`${date}-dinner`]: countOrderItemsByType('dinner'),
+        [`${date}-dinner`]: countOrderItemsDiet('dinner'),
         [`${date}-dinnerSnack`]: countOrderItemsByType('dinnerSnack'),
         [`${date}-breakfastHealthy`]: countOrderItemsHealthy('breakfast'),
         [`${date}-lunchHealthy`]: countOrderItemsHealthy('lunch'),
@@ -1477,11 +1809,22 @@ export class OrderService implements OnApplicationBootstrap {
     worksheet.addRow({}).commit();
     worksheet
       .addRow({
-        customerStatus: 'Total',
-        ...this.generateDeliverySummaryRow(bags, dates),
+        customerStatus: '',
+        ...this.generateDeliverySummaryRow(bags, dates, 'NO_REMARK'),
       })
       .commit();
-
+    worksheet
+      .addRow({
+        customerStatus: '',
+        ...this.generateDeliverySummaryRow(bags, dates, 'REMARK'),
+      })
+      .commit();
+    worksheet
+      .addRow({
+        customerStatus: 'Total',
+        ...this.generateDeliverySummaryRow(bags, dates, 'TOTAL'),
+      })
+      .commit();
     worksheet.commit(); // commit worksheet
 
     await workbook.commit();
@@ -1502,7 +1845,11 @@ export class OrderService implements OnApplicationBootstrap {
       useSharedStrings: true,
     });
     const worksheet = workbook.addWorksheet('DailyOrderItems');
-    const { bags } = await this.listBag({ ...options, getAll: true }, [], []);
+    const { bags } = await this.listBag(
+      { ...options, remark: 'Remark', getAll: true },
+      [],
+      [],
+    );
     let row = 1;
     const start = DateTime.fromISO(options.startDate);
     const end = DateTime.fromISO(options.endDate);
@@ -1512,7 +1859,7 @@ export class OrderService implements OnApplicationBootstrap {
         (bag) => bag.deliveryAt === current.toISODate(),
       );
       if (bagsInDate.length) {
-        types.forEach((type) => {
+        dailyOrderTypes.forEach((type) => {
           const bagHasOderItemInType = bagsInDate.filter((bag) => {
             return bag.orderItems.filter(
               (orderItem) => orderItem.type === type.value,
@@ -1566,6 +1913,22 @@ export class OrderService implements OnApplicationBootstrap {
   async onApplicationBootstrap() {
     console.log('Startup Service');
     // await this.MigrateRemarkOrder();
+  }
+
+  public async calculateDeliveryDate(payload: CalculateDate) {
+    const { deliveryOn, startDate, endDate, skipDates } = payload;
+    const deliveryDates = this.generateDeliveryDate(
+      deliveryOn as any,
+      startDate,
+      endDate,
+    );
+
+    const calculateDeliveryDates = await this.calculateDateWithHolidays(
+      { orderEndDate: endDate, orderStartDate: startDate },
+      deliveryDates,
+      skipDates || [],
+    );
+    return calculateDeliveryDates.sort();
   }
 
   private async MigrateRemarkOrder() {

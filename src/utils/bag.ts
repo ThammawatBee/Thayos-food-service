@@ -52,6 +52,10 @@ export const modifyGroupBag = (bags: Bag[]) => {
       inBasketStatus: sortedBags[0].inBasketStatus,
       basket: sortedBags[0].basket,
       order: sortedBags[0].order,
+      duplicateOrderItems: [
+        ...sortedBags[0].duplicateOrderItems,
+        ...sortedBags[1].duplicateOrderItems,
+      ],
     };
   } else {
     return {
@@ -66,6 +70,7 @@ export const modifyGroupBag = (bags: Bag[]) => {
       inBasketStatus: bags[0].inBasketStatus,
       basket: bags[0].basket,
       order: bags[0].order,
+      duplicateOrderItems: bags[0].duplicateOrderItems,
     };
   }
 };

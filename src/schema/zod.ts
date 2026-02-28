@@ -8,7 +8,7 @@ const ListUserSchema = z.object({
   name: z.string().optional(),
 });
 
-export class ListUsers extends createZodDto(ListUserSchema) { }
+export class ListUsers extends createZodDto(ListUserSchema) {}
 
 const CreateUserSchema = z.object({
   userCode: z.string(),
@@ -17,7 +17,7 @@ const CreateUserSchema = z.object({
   password: z.string(),
 });
 
-export class CreateUser extends createZodDto(CreateUserSchema) { }
+export class CreateUser extends createZodDto(CreateUserSchema) {}
 
 const EditUserSchema = z.object({
   name: z.string(),
@@ -25,7 +25,7 @@ const EditUserSchema = z.object({
   password: z.string(),
 });
 
-export class EditUser extends createZodDto(EditUserSchema) { }
+export class EditUser extends createZodDto(EditUserSchema) {}
 
 const ListCustomerSchema = z.object({
   offset: z.string().optional(),
@@ -33,7 +33,7 @@ const ListCustomerSchema = z.object({
   customerCode: z.string().optional(),
 });
 
-export class ListCustomers extends createZodDto(ListCustomerSchema) { }
+export class ListCustomers extends createZodDto(ListCustomerSchema) {}
 
 const ListCustomerOrderItemSchema = z.object({
   year: z.string(),
@@ -41,7 +41,7 @@ const ListCustomerOrderItemSchema = z.object({
 
 export class ListCustomerOrderItem extends createZodDto(
   ListCustomerOrderItemSchema,
-) { }
+) {}
 
 const CreateCustomerSchema = z.object({
   customerCode: z.string(),
@@ -65,7 +65,7 @@ const CreateCustomerSchema = z.object({
   preferDinnerSnack: z.boolean(),
 });
 
-export class CreateCustomer extends createZodDto(CreateCustomerSchema) { }
+export class CreateCustomer extends createZodDto(CreateCustomerSchema) {}
 
 const EditCustomerSchema = z.object({
   name: z.string(),
@@ -88,14 +88,14 @@ const EditCustomerSchema = z.object({
   preferDinnerSnack: z.boolean(),
 });
 
-export class EditCustomer extends createZodDto(EditCustomerSchema) { }
+export class EditCustomer extends createZodDto(EditCustomerSchema) {}
 
 const UpdateHolidaysSchema = z.object({
   addHolidays: z.array(z.string()),
   deleteHolidays: z.array(z.string()),
 });
 
-export class UpdateHolidays extends createZodDto(UpdateHolidaysSchema) { }
+export class UpdateHolidays extends createZodDto(UpdateHolidaysSchema) {}
 
 const IndividualOrder = z.object({
   preferBreakfast: z.boolean(),
@@ -157,9 +157,10 @@ const CreateOrderSchema = z.object({
     Friday: IndividualOrder,
     Saturday: IndividualOrder,
   }),
+  skipDates: z.array(z.string()),
 });
 
-export class CreateOrder extends createZodDto(CreateOrderSchema) { }
+export class CreateOrder extends createZodDto(CreateOrderSchema) {}
 
 const ListOderPaymentSchema = z.object({
   offset: z.string().optional(),
@@ -168,7 +169,7 @@ const ListOderPaymentSchema = z.object({
   endDate: z.string().optional(),
 });
 
-export class ListOderPayment extends createZodDto(ListOderPaymentSchema) { }
+export class ListOderPayment extends createZodDto(ListOderPaymentSchema) {}
 
 const ListBagSchema = z.object({
   offset: z.string().optional(),
@@ -179,13 +180,14 @@ const ListBagSchema = z.object({
   customer: z.string().optional(),
   remark: z.string().optional(),
   orderType: z.string().optional(),
+  remarkType: z.boolean().optional(),
   getAll: z
     .string()
     .optional()
     .transform((value) => value === 'true'),
 });
 
-export class ListBag extends createZodDto(ListBagSchema) { }
+export class ListBag extends createZodDto(ListBagSchema) {}
 
 const UpdateBagSchema = z.object({
   id: z.string(),
@@ -194,7 +196,7 @@ const UpdateBagSchema = z.object({
 
 export class UpdateBag extends createZodDto(
   z.object({ bags: z.array(UpdateBagSchema) }),
-) { }
+) {}
 
 const UpdateBagDataSchema = z.object({
   address: z.string(),
@@ -206,7 +208,7 @@ const UpdateBagDataSchema = z.object({
   dinnerSnack: z.number().int(),
 });
 
-export class UpdateBagData extends createZodDto(UpdateBagDataSchema) { }
+export class UpdateBagData extends createZodDto(UpdateBagDataSchema) {}
 
 const UpdateOrderSchema = z.object({
   address: z.string(),
@@ -233,9 +235,10 @@ const UpdateOrderSchema = z.object({
     Friday: IndividualOrder,
     Saturday: IndividualOrder,
   }),
+  skipDates: z.array(z.string()),
 });
 
-export class UpdateOrder extends createZodDto(UpdateOrderSchema) { }
+export class UpdateOrder extends createZodDto(UpdateOrderSchema) {}
 
 const ListOrderSchema = z.object({
   offset: z.string().optional(),
@@ -245,21 +248,47 @@ const ListOrderSchema = z.object({
   customer: z.string().optional(),
 });
 
-export class ListOrder extends createZodDto(ListOrderSchema) { }
+export class ListOrder extends createZodDto(ListOrderSchema) {}
 
 const VerifyOrderItemSchema = z.object({
   bagId: z.string(),
   orderItemId: z.string(),
 });
 
-export class VerifyOrderItem extends createZodDto(VerifyOrderItemSchema) { }
+export class VerifyOrderItem extends createZodDto(VerifyOrderItemSchema) {}
+
+const AppendDuplicateOrderItemSchema = z.object({
+  bagId: z.string(),
+  orderItemId: z.string(),
+  scannedAt: z.string().optional(),
+});
+
+export class AppendDuplicateOrderItem extends createZodDto(
+  AppendDuplicateOrderItemSchema,
+) {}
+
+const ResetDuplicateOrderItemSchema = z.object({
+  bagQrCode: z.string(),
+});
+
+export class ResetDuplicateOrderItem extends createZodDto(
+  ResetDuplicateOrderItemSchema,
+) {}
+
+const ResetOrderItemInBagStatusSchema = z.object({
+  bagQrCode: z.string(),
+});
+
+export class ResetOrderItemInBagStatus extends createZodDto(
+  ResetOrderItemInBagStatusSchema,
+) {}
 
 const VerifyBagSchema = z.object({
   bagQrCode: z.string(),
   basket: z.string(),
 });
 
-export class VerifyBag extends createZodDto(VerifyBagSchema) { }
+export class VerifyBag extends createZodDto(VerifyBagSchema) {}
 
 const ListLogSchema = z.object({
   offset: z.string().optional(),
@@ -269,4 +298,21 @@ const ListLogSchema = z.object({
   type: z.string().optional(),
 });
 
-export class ListLog extends createZodDto(ListLogSchema) { }
+export class ListLog extends createZodDto(ListLogSchema) {}
+
+const CalculateDateSchema = z.object({
+  startDate: z.string(),
+  endDate: z.string(),
+  deliveryOn: z.object({
+    Sunday: z.boolean(),
+    Monday: z.boolean(),
+    Tuesday: z.boolean(),
+    Wednesday: z.boolean(),
+    Thursday: z.boolean(),
+    Friday: z.boolean(),
+    Saturday: z.boolean(),
+  }),
+  skipDates: z.array(z.string()),
+});
+
+export class CalculateDate extends createZodDto(CalculateDateSchema) {}
