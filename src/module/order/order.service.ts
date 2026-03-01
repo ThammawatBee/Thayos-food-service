@@ -75,8 +75,8 @@ const types = [
 
 const dailyOrderTypes = [
   { text: 'มื้อเช้า', value: 'breakfast' },
-  { text: 'ของว่างเช้า', value: 'breakfastSnack' },
   { text: 'มื้อกลางวัน', value: 'lunch' },
+  { text: 'มื้อเย็น', value: 'dinner' },
 ];
 
 type DeliveryHeader = {
