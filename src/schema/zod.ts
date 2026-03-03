@@ -235,7 +235,6 @@ const UpdateOrderSchema = z.object({
     Friday: IndividualOrder,
     Saturday: IndividualOrder,
   }),
-  skipDates: z.array(z.string()),
 });
 
 export class UpdateOrder extends createZodDto(UpdateOrderSchema) {}
