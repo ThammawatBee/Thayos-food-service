@@ -764,6 +764,14 @@ export class OrderService implements OnApplicationBootstrap {
     query.leftJoinAndSelect('order.customer', 'customer');
     query.where('order.id = :id', { id: id });
     const order = await query.getOne();
+    await this.customerRepo
+      .createQueryBuilder()
+      .update(Customer)
+      .set({
+        address: payload.address,
+      })
+      .where('id = :id', { id: order.customer.id })
+      .execute();
     const bags = await this.bagRepo
       .createQueryBuilder('bag')
       .leftJoinAndSelect('bag.order', 'order')
