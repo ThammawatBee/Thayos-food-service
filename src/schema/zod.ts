@@ -127,7 +127,7 @@ const CreateOrderSchema = z.object({
   breakfastSnackCount: z.number(),
   lunchSnackCount: z.number(),
   dinnerSnackCount: z.number(),
-  remark: z.string(),
+  remark: z.string().nullable(),
   deliveryRemark: z.string(),
   deliveryTime: z.string(),
   deliveryTimeEnd: z.string(),
