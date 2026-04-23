@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import {
   CreateCustomer,
@@ -15,10 +16,11 @@ import {
   ListCustomers,
 } from 'src/schema/zod';
 import { CustomerService } from './customer.service';
+import { Response } from 'express';
 
 @Controller('customers')
 export class CustomerController {
-  constructor(private readonly customerService: CustomerService) {}
+  constructor(private readonly customerService: CustomerService) { }
 
   @Get(':id/order-items')
   async listCustomerOrderItem(
@@ -30,6 +32,11 @@ export class CustomerController {
       query.year,
     );
     return { orderItems: result };
+  }
+
+  @Get('/export-all')
+  async ExportAllCustomer(@Res() res: Response) {
+    return this.customerService.exportAllCustomer(res);
   }
 
   @Get()

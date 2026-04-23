@@ -7,6 +7,8 @@ import { Brackets, Repository } from 'typeorm';
 import { LogService } from '../log/log.service';
 import { UserPayload } from 'src/types/user-payload.interface';
 import { LogStatus, LogType } from 'src/entities/log.entity';
+import * as ExcelJS from 'exceljs';
+import { Response } from 'express';
 
 @Injectable()
 export class CustomerService {
@@ -16,7 +18,7 @@ export class CustomerService {
     @InjectRepository(OrderItem)
     private readonly orderItemRepo: Repository<OrderItem>,
     private readonly logService: LogService,
-  ) {}
+  ) { }
 
   async editUser(id: string, payload: EditCustomer, operator?: UserPayload) {
     const user = await this.customerRepo.findOne({
@@ -161,5 +163,61 @@ export class CustomerService {
       })
       .getMany();
     return orderItems;
+  }
+
+  public async exportAllCustomer(response: Response) {
+    response.setHeader(
+      'Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    );
+    response.setHeader(
+      'Content-Disposition',
+      'attachment; filename=reports.xlsx',
+    );
+    const workbook = new ExcelJS.stream.xlsx.WorkbookWriter({
+      stream: response, // STREAM directly to response
+      useStyles: true,
+      useSharedStrings: true,
+    });
+
+    const worksheet = workbook.addWorksheet('Customers');
+
+    worksheet.columns = [
+      { header: 'รหัสลูกค้า', key: 'id', width: 20 },
+      { header: 'ชื่อลูกค้า', key: 'fullname', width: 20 },
+      { header: 'ที่อยู่', key: 'address', width: 20 },
+      { header: 'Remark', key: 'remark', width: 20 },
+      { header: 'ชื่อเล่น', key: 'name', width: 20 },
+      { header: 'email', key: 'email', width: 20 },
+    ];
+    const pageSize = 200;
+    let skip = 0;
+
+    while (true) {
+      const customers = await this.customerRepo.find({
+        order: { id: 'ASC' }, // very important
+        skip,
+        take: pageSize,
+      });
+
+      if (customers.length === 0) break;
+
+      for (const customer of customers) {
+        const row = worksheet.addRow({
+          id: customer.customerCode,
+          fullname: customer.fullname,
+          address: customer.address,
+          remark: customer.remark,
+          name: customer.name,
+          email: customer.email,
+        });
+        // row.getCell(1).fill = RED_FILL;
+        row.commit();
+      }
+
+      skip += customers.length;
+    }
+    worksheet.commit(); // commit worksheet
+    await workbook.commit();
   }
 }
