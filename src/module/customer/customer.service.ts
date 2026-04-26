@@ -189,6 +189,7 @@ export class CustomerService {
       { header: 'Remark', key: 'remark', width: 20 },
       { header: 'ชื่อเล่น', key: 'name', width: 20 },
       { header: 'email', key: 'email', width: 20 },
+      { header: 'เบอร์โทร', key: 'mobileNumber', width: 20 },
     ];
     const pageSize = 200;
     let skip = 0;
@@ -210,6 +211,7 @@ export class CustomerService {
           remark: customer.remark,
           name: customer.name,
           email: customer.email,
+          mobileNumber: customer.mobileNumber,
         });
         // row.getCell(1).fill = RED_FILL;
         row.commit();
